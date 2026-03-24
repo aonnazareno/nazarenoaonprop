@@ -1,13 +1,23 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import type { SupabaseProperty, ComparableSupabase, TasacionForm } from '../types'
+import { getSettings } from './storage'
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string
+let _client: SupabaseClient | null = null
+let _clientUrl = ''
+let _clientKey = ''
 
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+function getSupabaseClient(): SupabaseClient {
+  const { supabaseUrl, supabaseAnonKey } = getSettings()
+  if (!_client || supabaseUrl !== _clientUrl || supabaseAnonKey !== _clientKey) {
+    _client = createClient(supabaseUrl || 'https://placeholder.supabase.co', supabaseAnonKey || 'placeholder')
+    _clientUrl = supabaseUrl
+    _clientKey = supabaseAnonKey
+  }
+  return _client
+}
 
 export async function fetchProperties(): Promise<SupabaseProperty[]> {
-  const { data, error } = await supabase
+  const { data, error } = await getSupabaseClient()
     .from('properties')
     .select(
       'id, title, operation_type, property_type, neighborhood, price, currency, surface_total, surface_covered, bedrooms, bathrooms, garages, status, short_description, description'

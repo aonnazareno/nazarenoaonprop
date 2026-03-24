@@ -5,15 +5,17 @@ import type {
   ComparableExternal,
   ComparableManual,
 } from '../types'
+import { getSettings } from './storage'
 
-const API_KEY = import.meta.env.VITE_ANTHROPIC_KEY as string
 const BASE_URL = 'https://api.anthropic.com/v1/messages'
 
-const COMMON_HEADERS = {
-  'x-api-key': API_KEY,
-  'anthropic-version': '2023-06-01',
-  'anthropic-dangerous-direct-browser-access': 'true',
-  'content-type': 'application/json',
+function getCommonHeaders() {
+  return {
+    'x-api-key': getSettings().anthropicKey,
+    'anthropic-version': '2023-06-01',
+    'anthropic-dangerous-direct-browser-access': 'true',
+    'content-type': 'application/json',
+  }
 }
 
 // ─── Vision: analyze photos ──────────────────────────────────────────────────
@@ -58,7 +60,7 @@ Sé técnico y específico. Respondé en español.`,
 
   const res = await fetch(BASE_URL, {
     method: 'POST',
-    headers: COMMON_HEADERS,
+    headers: getCommonHeaders(),
     body: JSON.stringify(body),
   })
 
@@ -133,7 +135,7 @@ Devolvé SOLO el JSON, sin texto adicional.`,
   const res = await fetch(BASE_URL, {
     method: 'POST',
     headers: {
-      ...COMMON_HEADERS,
+      ...getCommonHeaders(),
       'anthropic-beta': 'web-search-2025-03-05',
     },
     body: JSON.stringify(body),
@@ -363,7 +365,7 @@ Analizá cada comparable, mostrá el cálculo de valor/m², los ajustes, y expli
 
   const res = await fetch(BASE_URL, {
     method: 'POST',
-    headers: COMMON_HEADERS,
+    headers: getCommonHeaders(),
     body: JSON.stringify({
       model: 'claude-sonnet-4-6',
       max_tokens: 4096,

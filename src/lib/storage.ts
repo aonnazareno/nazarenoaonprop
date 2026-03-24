@@ -56,3 +56,27 @@ export function saveDraft(form: TasacionForm): void {
 export function clearDraft(): void {
   localStorage.removeItem(DRAFT_KEY)
 }
+
+// ─── Settings (API keys) ──────────────────────────────────────────────────────
+
+const SETTINGS_KEY = 'tasadoria_settings'
+
+export interface AppSettings {
+  anthropicKey: string
+  supabaseUrl: string
+  supabaseAnonKey: string
+}
+
+export function getSettings(): AppSettings {
+  try {
+    const raw = localStorage.getItem(SETTINGS_KEY)
+    if (!raw) return { anthropicKey: '', supabaseUrl: '', supabaseAnonKey: '' }
+    return JSON.parse(raw) as AppSettings
+  } catch {
+    return { anthropicKey: '', supabaseUrl: '', supabaseAnonKey: '' }
+  }
+}
+
+export function saveSettings(settings: AppSettings): void {
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings))
+}

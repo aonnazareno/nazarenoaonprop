@@ -1,9 +1,6 @@
 import { useState } from 'react'
-import { CheckCircle2, XCircle, Loader2, Key, Database, Info, Lightbulb } from 'lucide-react'
-
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string
-const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string
-const ANTHROPIC_KEY = import.meta.env.VITE_ANTHROPIC_KEY as string
+import { CheckCircle2, XCircle, Loader2, Key, Database, Info, Lightbulb, Save } from 'lucide-react'
+import { getSettings, saveSettings, type AppSettings } from '../../lib/storage'
 
 function maskKey(key: string) {
   if (!key) return '—'
@@ -13,21 +10,29 @@ function maskKey(key: string) {
 type TestStatus = 'idle' | 'loading' | 'ok' | 'error'
 
 export default function Configuracion() {
+  const [settings, setSettings] = useState<AppSettings>(getSettings)
+  const [saved, setSaved] = useState(false)
   const [supabaseStatus, setSupabaseStatus] = useState<TestStatus>('idle')
   const [claudeStatus, setClaudeStatus] = useState<TestStatus>('idle')
   const [supabaseMsg, setSupabaseMsg] = useState('')
   const [claudeMsg, setClaudeMsg] = useState('')
+
+  const handleSave = () => {
+    saveSettings(settings)
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
+  }
 
   const testSupabase = async () => {
     setSupabaseStatus('loading')
     setSupabaseMsg('')
     try {
       const res = await fetch(
-        `${SUPABASE_URL}/rest/v1/properties?select=id&limit=1`,
+        `${settings.supabaseUrl}/rest/v1/properties?select=id&limit=1`,
         {
           headers: {
-            apikey: SUPABASE_KEY,
-            Authorization: `Bearer ${SUPABASE_KEY}`,
+            apikey: settings.supabaseAnonKey,
+            Authorization: `Bearer ${settings.supabaseAnonKey}`,
           },
         }
       )
@@ -53,20 +58,20 @@ export default function Configuracion() {
       const res = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: {
-          'x-api-key': ANTHROPIC_KEY,
+          'x-api-key': settings.anthropicKey,
           'anthropic-version': '2023-06-01',
           'anthropic-dangerous-direct-browser-access': 'true',
           'content-type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'claude-haiku-4-5',
+          model: 'claude-haiku-4-5-20251001',
           max_tokens: 32,
           messages: [{ role: 'user', content: 'Responde solo: OK' }],
         }),
       })
       if (res.ok) {
         setClaudeStatus('ok')
-        setClaudeMsg('API de Claude operativa. Conexión directa desde browser habilitada.')
+        setClaudeMsg('API de Claude operativa.')
       } else {
         const err = await res.text()
         setClaudeStatus('error')
@@ -82,25 +87,76 @@ export default function Configuracion() {
     <div className="space-y-6 max-w-2xl">
       <div>
         <h2 className="section-title">Configuración</h2>
-        <p className="text-sm text-gris">Estado de las conexiones y herramientas de diagnóstico.</p>
+        <p className="text-sm text-gris">Claves de acceso y diagnóstico de conexiones.</p>
       </div>
 
-      {/* Supabase */}
+      {/* Keys form */}
+      <div className="card space-y-4">
+        <div className="flex items-center gap-2">
+          <Key size={18} className="text-verde" />
+          <h3 className="font-cormorant text-xl font-semibold">Claves de acceso</h3>
+        </div>
+
+        <div className="space-y-3">
+          <label className="block text-sm">
+            <span className="text-gris text-xs block mb-1">Anthropic API Key</span>
+            <input
+              type="password"
+              className="w-full border border-gray-200 rounded px-3 py-2 text-sm font-mono focus:outline-none focus:border-verde"
+              value={settings.anthropicKey}
+              onChange={(e) => setSettings((s) => ({ ...s, anthropicKey: e.target.value }))}
+              placeholder="sk-ant-..."
+            />
+          </label>
+
+          <label className="block text-sm">
+            <span className="text-gris text-xs block mb-1">Supabase URL</span>
+            <input
+              type="text"
+              className="w-full border border-gray-200 rounded px-3 py-2 text-sm font-mono focus:outline-none focus:border-verde"
+              value={settings.supabaseUrl}
+              onChange={(e) => setSettings((s) => ({ ...s, supabaseUrl: e.target.value }))}
+              placeholder="https://xxxx.supabase.co"
+            />
+          </label>
+
+          <label className="block text-sm">
+            <span className="text-gris text-xs block mb-1">Supabase Anon Key</span>
+            <input
+              type="password"
+              className="w-full border border-gray-200 rounded px-3 py-2 text-sm font-mono focus:outline-none focus:border-verde"
+              value={settings.supabaseAnonKey}
+              onChange={(e) => setSettings((s) => ({ ...s, supabaseAnonKey: e.target.value }))}
+              placeholder="eyJ..."
+            />
+          </label>
+        </div>
+
+        <button
+          onClick={handleSave}
+          className="btn-primary flex items-center gap-2"
+        >
+          {saved ? <CheckCircle2 size={14} /> : <Save size={14} />}
+          {saved ? 'Guardado' : 'Guardar claves'}
+        </button>
+      </div>
+
+      {/* Supabase test */}
       <div className="card space-y-4">
         <div className="flex items-center gap-2">
           <Database size={18} className="text-verde" />
-          <h3 className="font-cormorant text-xl font-semibold">Supabase</h3>
+          <h3 className="font-cormorant text-xl font-semibold">Probar Supabase</h3>
         </div>
 
         <div className="grid grid-cols-1 gap-2 text-sm">
-          <ConfigRow label="URL" value={SUPABASE_URL || '—'} />
-          <ConfigRow label="Anon key" value={maskKey(SUPABASE_KEY)} />
+          <ConfigRow label="URL" value={settings.supabaseUrl || '—'} />
+          <ConfigRow label="Anon key" value={maskKey(settings.supabaseAnonKey)} />
         </div>
 
         <div className="flex items-center gap-3">
           <button
             onClick={testSupabase}
-            disabled={supabaseStatus === 'loading'}
+            disabled={supabaseStatus === 'loading' || !settings.supabaseUrl}
             className="btn-secondary flex items-center gap-2"
           >
             {supabaseStatus === 'loading' ? (
@@ -119,24 +175,23 @@ export default function Configuracion() {
         )}
       </div>
 
-      {/* Claude */}
+      {/* Claude test */}
       <div className="card space-y-4">
         <div className="flex items-center gap-2">
           <Key size={18} className="text-verde" />
-          <h3 className="font-cormorant text-xl font-semibold">Claude API (Anthropic)</h3>
+          <h3 className="font-cormorant text-xl font-semibold">Probar Claude API</h3>
         </div>
 
         <div className="grid grid-cols-1 gap-2 text-sm">
-          <ConfigRow label="API Key" value={maskKey(ANTHROPIC_KEY)} />
+          <ConfigRow label="API Key" value={maskKey(settings.anthropicKey)} />
           <ConfigRow label="Modelo tasación" value="claude-sonnet-4-6" />
-          <ConfigRow label="Modelo visión" value="claude-sonnet-4-6" />
-          <ConfigRow label="Búsqueda web" value="Habilitada (web-search-2025-03-05)" />
+          <ConfigRow label="Búsqueda web" value="Habilitada" />
         </div>
 
         <div className="flex items-center gap-3">
           <button
             onClick={testClaude}
-            disabled={claudeStatus === 'loading'}
+            disabled={claudeStatus === 'loading' || !settings.anthropicKey}
             className="btn-secondary flex items-center gap-2"
           >
             {claudeStatus === 'loading' ? (
@@ -166,7 +221,7 @@ export default function Configuracion() {
           <InfoRow label="Empresa" value="Calderón Propiedades · Mat. 227 · Zona Oeste GBA" />
           <InfoRow label="Usuarios" value="Nazareno y Patricia Calderón" />
           <InfoRow label="Historial" value="Guardado en localStorage (máx. 50 tasaciones)" />
-          <InfoRow label="Seguridad" value="Uso interno. Las claves están embebidas en el bundle." />
+          <InfoRow label="Claves" value="Guardadas en localStorage del navegador" />
         </div>
       </div>
 
