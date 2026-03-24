@@ -90,22 +90,62 @@ export interface TasacionForm {
   comparablesManuales: ComparableManual[]
 }
 
+// ─── Comparable analizado por la IA ──────────────────────────────────────────
+export interface ComparableAnalizado {
+  titulo: string
+  fuente: string
+  precio_publicacion: number | null
+  m2: number | null
+  valor_m2: number | null
+  ajuste_pct: number
+  ajuste_motivos: string
+  valor_m2_ajustado: number | null
+  incluido: boolean
+  motivo_inclusion: string
+}
+
+// ─── Ajuste aplicado a la tasación ───────────────────────────────────────────
+export interface AjusteAplicado {
+  concepto: string
+  impacto_pct: number
+  descripcion: string
+}
+
 // ─── AI Valuation result ─────────────────────────────────────────────────────
 export interface TasacionResult {
+  // Rangos y cierre
   rango_conservador: number
   rango_probable: number
   rango_optimista: number
   cierre_min: number
   cierre_max: number
   margen_negociacion: number
+
+  // Valor/m²
+  valor_m2_mercado: number
+  valor_m2_propiedad: number
+
+  // Confianza
   confianza_pct: number
   confianza_nivel: 'Baja' | 'Media' | 'Alta' | 'Muy alta'
   confianza_nota: string
+
+  // Desvío vs precio pretendido
   desvio_pct: number
   desvio_signo: 'neutral' | 'sobrevaluado' | 'subvaluado'
+
+  // Metodología detallada
+  comparables_analizados: ComparableAnalizado[]
+  ajustes_aplicados: AjusteAplicado[]
+  metodologia: string
+  calculo_paso_a_paso: string
+
+  // Variables
   variables_suben: string[]
   variables_bajan: string[]
   variables_alerta: string[]
+
+  // Recomendación y textos
   recomendacion: string
   recomendacion_titulo: string
   recomendacion_desc: string
@@ -113,6 +153,8 @@ export interface TasacionResult {
   observaciones_internas: string
   requiere_visita: boolean
   requiere_visita_motivo: string
+
+  // Añadido client-side
   analisis_visual?: string
 }
 

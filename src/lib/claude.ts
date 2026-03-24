@@ -41,14 +41,15 @@ export async function analyzePhotos(
           ...imageContent,
           {
             type: 'text',
-            text: `Sos un tasador inmobiliario experto de Zona Oeste GBA Argentina. Analizá estas fotos de la propiedad y describí en 3-5 oraciones:
+            text: `Sos un tasador inmobiliario experto de Zona Oeste GBA Argentina. Analizá estas fotos y describí:
 1. Estado visual general (excelente/muy bueno/bueno/regular/a refaccionar)
 2. Calidad constructiva aparente (estándar/buena/premium/de lujo)
-3. Calidad de terminaciones visibles (pisos, aberturas, cocina, baño)
-4. Puntos a favor y en contra para la tasación
-5. Cualquier detalle relevante para valorizar o desvalorizar
+3. Terminaciones visibles: pisos, aberturas, cocina, baños, carpintería
+4. Puntos concretos que SUMAN valor (con estimación de impacto en %)
+5. Puntos concretos que RESTAN valor (con estimación de impacto en %)
+6. Conclusión: cómo afectan estas fotos al valor de tasación
 
-Sé directo y técnico. Responde en español.`,
+Sé técnico y específico. Respondé en español.`,
           },
         ],
       },
@@ -61,52 +62,70 @@ Sé directo y técnico. Responde en español.`,
     body: JSON.stringify(body),
   })
 
-  if (!res.ok) {
-    const err = await res.text()
-    throw new Error(`Error analizando fotos: ${err}`)
-  }
-
+  if (!res.ok) throw new Error(`Error analizando fotos: ${await res.text()}`)
   const data = await res.json()
   return data.content?.[0]?.text ?? ''
 }
 
-// ─── Web search: find comparable properties in portals ───────────────────────
+// ─── Web search: precio/m² de mercado + listings comparables ─────────────────
 export async function searchPortales(form: TasacionForm): Promise<ComparableExternal[]> {
   const tipoDesc = form.country
     ? `${form.tipoPropiedad} en ${form.country}`
     : form.tipoPropiedad
   const zona = form.country || form.ubicacion || 'Zona Oeste GBA'
-  const m2 = form.m2Cubiertos ? `${form.m2Cubiertos}m²` : ''
-  const query = `propiedades en venta ${tipoDesc} ${zona} Zona Oeste GBA Argentina ${m2} precio USD zonaprop argenprop mercadolibre 2024 2025`
+  const m2Info = form.m2Cubiertos ? `, ${form.m2Cubiertos}m² cubiertos` : ''
+  const ambInfo = form.ambientes && form.ambientes !== '0' ? `, ${form.ambientes} ambientes` : ''
 
   const body = {
     model: 'claude-sonnet-4-6',
-    max_tokens: 2048,
+    max_tokens: 3000,
     tools: [
       {
         type: 'web_search_20250305',
         name: 'web_search',
-        max_uses: 3,
+        max_uses: 5,
       },
     ],
-    system: `Sos un agente de búsqueda inmobiliaria para Zona Oeste GBA Argentina.
-Tu tarea es buscar en portales inmobiliarios (Zonaprop, Argenprop, MercadoLibre Inmuebles) propiedades similares a las especificadas.
-Devolvés ÚNICAMENTE un JSON array con los resultados encontrados. Sin texto adicional, sin markdown, sin explicaciones.
-El JSON debe ser un array de objetos con estas claves exactas:
-titulo, precio_usd, precio_ars, m2_cubiertos, m2_lote, ambientes, zona, estado, fuente, url_referencia
-Los valores numéricos pueden ser null si no se encuentran. Incluí mínimo 3 y máximo 8 resultados.`,
+    system: `Sos un investigador de mercado inmobiliario para Zona Oeste GBA Argentina especializado en tasaciones.
+Tu objetivo es buscar en portales inmobiliarios (Zonaprop, Argenprop, MercadoLibre Inmuebles) dos cosas:
+1. El precio promedio por m² en la zona para el tipo de propiedad indicado
+2. Propiedades en venta similares a las especificadas
+
+Devolvés ÚNICAMENTE un JSON con esta estructura exacta, sin texto adicional ni markdown:
+{
+  "precio_m2_zona": número o null,
+  "fuente_precio_m2": "de dónde obtuviste ese dato",
+  "nota_mercado": "contexto breve del mercado en esa zona",
+  "comparables": [
+    {
+      "titulo": string,
+      "precio_usd": número o null,
+      "precio_ars": número o null,
+      "m2_cubiertos": número o null,
+      "m2_lote": número o null,
+      "ambientes": número o null,
+      "zona": string,
+      "estado": string,
+      "fuente": "Zonaprop"|"Argenprop"|"MercadoLibre"|otro,
+      "url_referencia": string
+    }
+  ]
+}
+Incluí entre 4 y 8 comparables. Los valores numéricos pueden ser null si no están disponibles.`,
     messages: [
       {
         role: 'user',
-        content: `Buscá en portales inmobiliarios: ${query}
-
+        content: `Necesito datos de mercado para tasar: ${tipoDesc}
 Zona: ${zona}
-Tipo: ${tipoDesc}
-M² cubiertos aprox: ${form.m2Cubiertos || 'no especificado'}
-M² terreno aprox: ${form.m2Terreno || 'no especificado'}
-Ambientes: ${form.ambientes || 'no especificado'}
+Características: ${m2Info}${ambInfo}
+Antigüedad aprox: ${form.antiguedad ? form.antiguedad + ' años' : 'no especificada'}
+Estado: ${form.estadoGeneral || 'no especificado'}
 
-Buscá en Zonaprop, Argenprop y MercadoLibre. Devolvé SOLO el JSON array, sin texto adicional.`,
+Buscá:
+1. Precio promedio por m² para ${tipoDesc} en ${zona} hoy (2025)
+2. Propiedades en venta similares en Zonaprop, Argenprop y MercadoLibre
+
+Devolvé SOLO el JSON, sin texto adicional.`,
       },
     ],
   }
@@ -120,45 +139,127 @@ Buscá en Zonaprop, Argenprop y MercadoLibre. Devolvé SOLO el JSON array, sin t
     body: JSON.stringify(body),
   })
 
-  if (!res.ok) {
-    const err = await res.text()
-    throw new Error(`Error buscando en portales: ${err}`)
-  }
+  if (!res.ok) throw new Error(`Error buscando en portales: ${await res.text()}`)
 
   const data = await res.json()
 
-  // Claude con web_search devuelve múltiples bloques: tool_use + tool_result + text
-  // Tomamos el ÚLTIMO bloque de texto que tiene el JSON final
+  // Tomar el último bloque de texto (Claude con web_search escribe el JSON al final)
   const textBlocks: string[] = []
   for (const block of data.content ?? []) {
-    if (block.type === 'text' && block.text) {
-      textBlocks.push(block.text)
-    }
+    if (block.type === 'text' && block.text) textBlocks.push(block.text)
   }
   const jsonText = textBlocks[textBlocks.length - 1] ?? ''
 
-  // Intentar parsear el JSON array de la respuesta
   try {
-    const match = jsonText.match(/\[[\s\S]*\]/)
+    const match = jsonText.match(/\{[\s\S]*\}/)
     if (match) {
-      const parsed = JSON.parse(match[0]) as Omit<ComparableExternal, 'id' | 'seleccionado'>[]
-      return parsed.map((p, i) => ({ ...p, id: `portal-${i}`, seleccionado: false }))
-    }
-    // Si no hay array, intentar parsear directo
-    const direct = JSON.parse(jsonText)
-    if (Array.isArray(direct)) {
-      return direct.map((p: Omit<ComparableExternal, 'id' | 'seleccionado'>, i: number) => ({
+      const parsed = JSON.parse(match[0]) as {
+        precio_m2_zona?: number | null
+        fuente_precio_m2?: string
+        nota_mercado?: string
+        comparables?: Omit<ComparableExternal, 'id' | 'seleccionado'>[]
+      }
+
+      // Guardar datos de mercado para uso en el prompt de tasación
+      if (parsed.precio_m2_zona) {
+        sessionStorage.setItem(
+          'mercado_zona',
+          JSON.stringify({
+            precio_m2: parsed.precio_m2_zona,
+            fuente: parsed.fuente_precio_m2,
+            nota: parsed.nota_mercado,
+          })
+        )
+      }
+
+      return (parsed.comparables ?? []).map((p, i) => ({
         ...p,
         id: `portal-${i}`,
         seleccionado: false,
       }))
     }
   } catch {
-    console.warn('No se pudo parsear JSON de portales:', jsonText.slice(0, 200))
+    console.warn('No se pudo parsear respuesta de portales:', jsonText.slice(0, 300))
   }
 
   return []
 }
+
+// ─── System prompt principal ──────────────────────────────────────────────────
+const SYSTEM_PROMPT = `Sos el tasador experto interno de CALDERÓN PROPIEDADES, matrícula N° 227, Zona Oeste GBA Argentina.
+
+ESPECIALIDAD: Countries y barrios cerrados (San Patricio, San Diego CC, Campos de Álvarez, Terravista, La Cesarina, Álvarez del Bosque, Solar de Álvarez, Country Banco Provincia), casas, departamentos y lotes en Zona Oeste GBA.
+
+METODOLOGÍA OBLIGATORIA — seguí estos pasos en orden:
+1. Calculá el valor por m² de CADA comparable disponible (precio / m² cubiertos)
+2. Evaluá la comparabilidad de cada uno: ¿qué tan similar es a la propiedad en cuestión? Explicá por qué lo incluís o excluís
+3. Aplicá ajustes a cada comparable por: zona exacta, calidad constructiva, estado, antigüedad, orientación, vista, situación legal, liquidez del mercado
+4. Calculá el valor/m² promedio ponderado de los comparables válidos
+5. Multiplicá por los m² de la propiedad para obtener el valor base
+6. Aplicá ajustes globales finales (urgencia, mercado, calidad especial, etc.)
+7. Generá el rango conservador/probable/optimista y el precio de cierre
+8. Calculá el desvío vs precio pretendido del propietario
+9. Determiná la confianza según cantidad y calidad de los comparables
+
+REGLAS CRÍTICAS:
+- Nunca inventés comparables — trabajá solo con los provistos
+- Si no hay comparables suficientes, bajá la confianza y usá criterio de mercado general
+- Siempre distinguí precio de publicación vs precio de cierre (descuento típico 5-12%, hasta 15% en countries premium)
+- En countries: la diferencia estándar ↔ premium puede ser USD 40.000-60.000 en los mismos m²
+- Sé conservador en baja liquidez
+- Mostrá TODO el razonamiento — el corredor necesita explicarle al propietario cómo llegaste al número
+
+FORMATO DE RESPUESTA: SOLO JSON válido, sin markdown, sin texto antes ni después.
+
+JSON schema obligatorio:
+{
+  "rango_conservador": number,
+  "rango_probable": number,
+  "rango_optimista": number,
+  "cierre_min": number,
+  "cierre_max": number,
+  "margen_negociacion": number,
+  "valor_m2_mercado": number,
+  "valor_m2_propiedad": number,
+  "confianza_pct": number,
+  "confianza_nivel": "Baja"|"Media"|"Alta"|"Muy alta",
+  "confianza_nota": string,
+  "desvio_pct": number,
+  "desvio_signo": "neutral"|"sobrevaluado"|"subvaluado",
+  "comparables_analizados": [
+    {
+      "titulo": string,
+      "fuente": string,
+      "precio_publicacion": number|null,
+      "m2": number|null,
+      "valor_m2": number|null,
+      "ajuste_pct": number,
+      "ajuste_motivos": string,
+      "valor_m2_ajustado": number|null,
+      "incluido": boolean,
+      "motivo_inclusion": string
+    }
+  ],
+  "ajustes_aplicados": [
+    {
+      "concepto": string,
+      "impacto_pct": number,
+      "descripcion": string
+    }
+  ],
+  "metodologia": string,
+  "calculo_paso_a_paso": string,
+  "variables_suben": string[],
+  "variables_bajan": string[],
+  "variables_alerta": string[],
+  "recomendacion": string,
+  "recomendacion_titulo": string,
+  "recomendacion_desc": string,
+  "justificacion": string,
+  "observaciones_internas": string,
+  "requiere_visita": boolean,
+  "requiere_visita_motivo": string
+}`
 
 // ─── Main valuation ───────────────────────────────────────────────────────────
 export async function generateValuation(
@@ -172,51 +273,70 @@ export async function generateValuation(
   const selectedPortales = comparablesPortales.filter((c) => c.seleccionado)
   const selectedManuales = comparablesManuales.filter((c) => c.seleccionado)
 
+  // Recuperar datos de mercado guardados por searchPortales
+  let mercadoZona = ''
+  try {
+    const raw = sessionStorage.getItem('mercado_zona')
+    if (raw) {
+      const m = JSON.parse(raw) as { precio_m2: number; fuente: string; nota: string }
+      mercadoZona = `
+DATO DE MERCADO (precio/m² zona obtenido de portales):
+- Precio/m² promedio de mercado en la zona: USD ${m.precio_m2.toLocaleString('es-AR')}
+- Fuente: ${m.fuente}
+- Contexto: ${m.nota}`
+    }
+  } catch { /* ignore */ }
+
   const allComparables = [
     ...selectedSupabase.map((c) => ({
-      fuente: 'Cartera propia',
+      fuente: 'Cartera propia (Calderón Propiedades)',
       tipo: c.property_type,
       zona: c.neighborhood,
-      precio: c.price ? `USD ${c.price.toLocaleString()}` : 'Sin precio',
-      moneda: c.currency,
+      titulo: c.title,
+      precio_publicacion: c.price,
+      moneda: c.currency ?? 'USD',
       m2_cubiertos: c.surface_covered,
       m2_total: c.surface_total,
+      valor_m2_publicacion: c.price && c.surface_covered ? Math.round(c.price / c.surface_covered) : null,
       ambientes: c.bedrooms,
-      estado: c.status,
-      titulo: c.title,
+      banos: c.bathrooms,
+      cocheras: c.garages,
+      estado_db: c.status,
+      descripcion: c.short_description,
     })),
     ...selectedPortales.map((c) => ({
       fuente: c.fuente,
-      tipo: form.tipoPropiedad,
       zona: c.zona,
-      precio: c.precio_usd ? `USD ${c.precio_usd.toLocaleString()}` : c.precio_ars ? `ARS ${c.precio_ars.toLocaleString()}` : 'Sin precio',
+      titulo: c.titulo,
+      precio_publicacion_usd: c.precio_usd,
+      precio_publicacion_ars: c.precio_ars,
+      valor_m2_publicacion: c.precio_usd && c.m2_cubiertos ? Math.round(c.precio_usd / c.m2_cubiertos) : null,
       m2_cubiertos: c.m2_cubiertos,
       m2_lote: c.m2_lote,
       ambientes: c.ambientes,
       estado: c.estado,
-      titulo: c.titulo,
       url: c.url_referencia,
     })),
     ...selectedManuales.map((c) => ({
-      fuente: c.fuente || 'Manual',
+      fuente: c.fuente || 'Carga manual',
       zona: c.zona,
-      precio: c.precio,
-      m2: c.m2,
+      precio_texto: c.precio,
+      m2_texto: c.m2,
       descripcion: c.descripcion,
     })),
   ]
 
   const contextStr = `
-DATOS DE LA PROPIEDAD A TASAR:
+PROPIEDAD A TASAR:
 - Tipo: ${form.tipoPropiedad}
-- Country/Barrio cerrado: ${form.country || 'N/A'}
-- Ubicación/Zona: ${form.ubicacion || 'No especificada'}
+- Country/BC: ${form.country || 'N/A'}
+- Ubicación: ${form.ubicacion || 'No especificada'}
 - M² cubiertos: ${form.m2Cubiertos || 'No especificado'}
 - M² terreno/lote: ${form.m2Terreno || 'No especificado'}
 - Ambientes: ${form.ambientes || 'No especificado'}
 - Baños: ${form.banos || 'No especificado'}
 - Cocheras: ${form.cocheras || 'No especificado'}
-- Antigüedad: ${form.antiguedad || 'No especificada'}
+- Antigüedad: ${form.antiguedad ? form.antiguedad + ' años' : 'No especificada'}
 - Estado general: ${form.estadoGeneral || 'No especificado'}
 - Calidad constructiva: ${form.calidadConstructiva || 'No especificada'}
 - Orientación: ${form.orientacion || 'No especificada'}
@@ -224,55 +344,44 @@ DATOS DE LA PROPIEDAD A TASAR:
 - Situación legal: ${form.situacionLegal || 'No especificada'}
 - Ocupación: ${form.ocupacion || 'No especificada'}
 - Urgencia de venta: ${form.urgenciaVenta || 'Media'}
-- Precio pretendido por el propietario: ${form.precioPretendido ? `USD ${parseFloat(form.precioPretendido).toLocaleString()}` : 'No indicado'}
-- Video link: ${form.videoLink || 'N/A'}
+- Precio pretendido por el propietario: ${form.precioPretendido ? `USD ${parseFloat(form.precioPretendido).toLocaleString('es-AR')}` : 'No indicado'}
 - Observaciones del corredor: ${form.observaciones || 'Sin observaciones'}
+${mercadoZona}
 
 ANÁLISIS VISUAL DE FOTOS (${form.fotos.length} fotos):
-${analisisVisual || 'Sin fotos disponibles'}
+${analisisVisual || 'Sin fotos — no hay análisis visual disponible'}
 
-COMPARABLES SELECCIONADOS (${allComparables.length} total):
-${allComparables.length > 0 ? JSON.stringify(allComparables, null, 2) : 'Sin comparables seleccionados — usar criterio de mercado general'}
-
-CANTIDAD POR FUENTE:
-- Cartera propia: ${selectedSupabase.length}
-- Portales externos: ${selectedPortales.length}
+COMPARABLES DISPONIBLES (${allComparables.length} total):
+- De cartera propia: ${selectedSupabase.length}
+- De portales externos: ${selectedPortales.length}
 - Carga manual: ${selectedManuales.length}
-`
 
-  const body = {
-    model: 'claude-sonnet-4-6',
-    max_tokens: 2048,
-    system: `Sos el agente tasador interno de CALDERÓN PROPIEDADES, matrícula N° 227, Zona Oeste GBA. Trabajás en USD. Tipologías: countries/BC (San Patricio, San Diego CC, Campos de Álvarez, Terravista, La Cesarina, Álvarez del Bosque, Solar de Álvarez, Country Banco Provincia), casas, departamentos, lotes. En countries la diferencia entre calidad estándar y premium puede ser USD 40.000-60.000 en los mismos m². Metodología: calcular valor/m² de cada comparable, aplicar ajustes por ubicación/estado/calidad/antigüedad/liquidez, generar rango conservador/probable/optimista, estimar precio de cierre con margen 5-12% (hasta 15% en countries), detectar desvío vs precio del propietario, calcular confianza. Reglas: nunca inventar comparables, siempre distinguir precio de publicación de precio de cierre, ser conservador en baja liquidez. Responder SOLO con JSON válido sin markdown ni texto adicional: {"rango_conservador": number, "rango_probable": number, "rango_optimista": number, "cierre_min": number, "cierre_max": number, "margen_negociacion": number, "confianza_pct": number, "confianza_nivel": "Baja"|"Media"|"Alta"|"Muy alta", "confianza_nota": string, "desvio_pct": number, "desvio_signo": "neutral"|"sobrevaluado"|"subvaluado", "variables_suben": string[], "variables_bajan": string[], "variables_alerta": string[], "recomendacion": string, "recomendacion_titulo": string, "recomendacion_desc": string, "justificacion": string, "observaciones_internas": string, "requiere_visita": boolean, "requiere_visita_motivo": string}`,
-    messages: [
-      {
-        role: 'user',
-        content: contextStr,
-      },
-    ],
-  }
+${allComparables.length > 0 ? JSON.stringify(allComparables, null, 2) : 'Sin comparables — usá criterio de mercado general y bajá la confianza'}
+
+INSTRUCCIÓN FINAL:
+Analizá cada comparable, mostrá el cálculo de valor/m², los ajustes, y explicá detalladamente cómo llegás al rango de tasación. El corredor tiene que poder mostrarle este informe al propietario y explicar cada número.`
 
   const res = await fetch(BASE_URL, {
     method: 'POST',
     headers: COMMON_HEADERS,
-    body: JSON.stringify(body),
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 4096,
+      system: SYSTEM_PROMPT,
+      messages: [{ role: 'user', content: contextStr }],
+    }),
   })
 
-  if (!res.ok) {
-    const err = await res.text()
-    throw new Error(`Error generando tasación: ${err}`)
-  }
+  if (!res.ok) throw new Error(`Error generando tasación: ${await res.text()}`)
 
   const data = await res.json()
   const text = data.content?.[0]?.text ?? '{}'
 
   try {
     const match = text.match(/\{[\s\S]*\}/)
-    if (match) {
-      return JSON.parse(match[0]) as TasacionResult
-    }
+    if (match) return JSON.parse(match[0]) as TasacionResult
     return JSON.parse(text) as TasacionResult
   } catch {
-    throw new Error('Error parseando respuesta de Claude: ' + text)
+    throw new Error('Error parseando respuesta de Claude: ' + text.slice(0, 500))
   }
 }
