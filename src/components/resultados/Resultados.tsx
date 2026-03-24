@@ -11,8 +11,9 @@ import {
   Layers,
   ChevronDown,
   ChevronUp,
-  ExternalLink,
   XCircle,
+  Share2,
+  UserCheck,
 } from 'lucide-react'
 import { useState } from 'react'
 import clsx from 'clsx'
@@ -93,6 +94,131 @@ function Section({
   )
 }
 
+// ─── Ficha cliente (versión limpia) ──────────────────────────────────────────
+function FichaCliente({
+  result,
+  form,
+  onClose,
+}: {
+  result: TasacionResult
+  form: TasacionForm
+  onClose: () => void
+}) {
+  const semaforo = semaforoStyle(result.desvio_signo, result.desvio_pct)
+  const titulo = [form.tipoPropiedad, form.country, form.ubicacion].filter(Boolean).join(' · ')
+
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 overflow-y-auto">
+      <div className="min-h-screen py-8 px-4 flex items-start justify-center">
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl">
+          {/* Header */}
+          <div className="flex items-center justify-between p-6 border-b border-gray-100">
+            <div>
+              <p className="text-[10px] font-semibold text-gris uppercase tracking-widest mb-1">
+                Informe para el propietario
+              </p>
+              <h2 className="font-cormorant text-2xl font-semibold text-gray-800">
+                Tasación de propiedad
+              </h2>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => window.print()}
+                className="btn-ghost flex items-center gap-2 text-xs"
+              >
+                <Download size={13} /> Imprimir
+              </button>
+              <button onClick={onClose} className="btn-ghost text-xs">
+                Cerrar
+              </button>
+            </div>
+          </div>
+
+          <div className="p-6 space-y-5">
+            {/* Propiedad + fecha */}
+            <div>
+              <p className="font-medium text-gray-800">{titulo || 'Propiedad'}</p>
+              <p className="text-sm text-gris mt-0.5">
+                {new Date().toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' })}
+              </p>
+            </div>
+
+            {/* Semáforo */}
+            <div className={clsx('rounded-xl p-4 border-2 text-center', semaforo.border, semaforo.bg)}>
+              <div className={clsx('inline-flex items-center gap-2 font-semibold text-sm', semaforo.text)}>
+                {result.desvio_signo === 'sobrevaluado'
+                  ? <TrendingUp size={16} />
+                  : result.desvio_signo === 'subvaluado'
+                  ? <TrendingDown size={16} />
+                  : <MinusCircle size={16} />}
+                {semaforo.label}
+              </div>
+              {form.precioPretendido && (
+                <p className="text-xs text-gris mt-1">
+                  Precio pretendido: <span className="font-semibold text-gray-700">
+                    USD {parseFloat(form.precioPretendido).toLocaleString('es-AR')}
+                  </span>
+                  {' · '}desvío <span className="font-semibold">{result.desvio_pct > 0 ? '+' : ''}{result.desvio_pct.toFixed(1)}%</span> vs mercado
+                </p>
+              )}
+            </div>
+
+            {/* Rangos */}
+            <div className="bg-crema rounded-xl p-4">
+              <p className="text-[11px] font-medium text-gris uppercase tracking-wide mb-3">Valor de mercado estimado</p>
+              <div className="space-y-1.5">
+                <RangoRow label="Conservador" value={result.rango_conservador} />
+                <RangoRow label="Probable" value={result.rango_probable} highlight />
+                <RangoRow label="Optimista" value={result.rango_optimista} />
+              </div>
+              <div className="mt-3 pt-3 border-t border-gray-200">
+                <p className="text-[11px] text-gris uppercase tracking-wide mb-1">Precio de cierre estimado</p>
+                <p className="font-cormorant text-xl font-semibold text-gray-800">
+                  {usd(result.cierre_min)} – {usd(result.cierre_max)}
+                </p>
+              </div>
+            </div>
+
+            {/* Variables */}
+            {(result.variables_suben?.length > 0 || result.variables_bajan?.length > 0) && (
+              <div>
+                <p className="text-[11px] font-medium text-gris uppercase tracking-wide mb-2">Factores que impactan el valor</p>
+                <div className="flex flex-wrap gap-2">
+                  {result.variables_suben?.map((v) => (
+                    <span key={v} className="chip bg-verde-light text-verde">↑ {v}</span>
+                  ))}
+                  {result.variables_bajan?.map((v) => (
+                    <span key={v} className="chip bg-red-50 text-red-600">↓ {v}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Recomendación */}
+            <div className="card border-l-4 border-verde bg-verde-muted">
+              <div className="flex items-start gap-3">
+                <CheckCircle2 className="text-verde flex-shrink-0 mt-0.5" size={18} />
+                <div>
+                  <p className="font-cormorant text-lg font-semibold text-verde mb-1">
+                    {result.recomendacion_titulo}
+                  </p>
+                  <p className="text-sm text-gray-700 leading-relaxed">{result.recomendacion_desc}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Disclaimer */}
+            <p className="text-[11px] text-gris text-center leading-relaxed border-t border-gray-100 pt-4">
+              Informe elaborado por Calderón Propiedades · Mat. 227 · Zona Oeste GBA ·
+              Valores estimativos basados en comparables de mercado y criterio profesional · No constituye tasación oficial.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function Resultados({
   result,
   form,
@@ -101,13 +227,47 @@ export default function Resultados({
   comparablesManualesCount,
   onNuevaTasacion,
 }: Props) {
+  const [showFichaCliente, setShowFichaCliente] = useState(false)
   const semaforo = semaforoStyle(result.desvio_signo, result.desvio_pct)
   const totalComparables = comparablesSupabaseCount + comparablesPortalesCount + comparablesManualesCount
   const comparablesIncluidos = (result.comparables_analizados ?? []).filter((c) => c.incluido)
   const comparablesExcluidos = (result.comparables_analizados ?? []).filter((c) => !c.incluido)
 
+  const handleWhatsApp = () => {
+    const titulo = [form.tipoPropiedad, form.country, form.ubicacion].filter(Boolean).join(' · ')
+    const lines = [
+      `*Tasación · Calderón Propiedades*`,
+      titulo ? `_${titulo}_` : '',
+      '',
+      `*Valor probable:* ${usd(result.rango_probable)}`,
+      `*Rango:* ${usd(result.rango_conservador)} – ${usd(result.rango_optimista)}`,
+      `*Precio de cierre estimado:* ${usd(result.cierre_min)} – ${usd(result.cierre_max)}`,
+      '',
+      form.precioPretendido
+        ? `*Precio pretendido:* USD ${parseFloat(form.precioPretendido).toLocaleString('es-AR')} (${result.desvio_signo === 'neutral' ? 'en línea con el mercado' : result.desvio_signo + ' ' + Math.abs(result.desvio_pct).toFixed(1) + '%'})`
+        : '',
+      '',
+      `*${result.recomendacion_titulo}*`,
+      result.recomendacion_desc,
+      '',
+      `_Calderón Propiedades · Mat. 227 · Zona Oeste GBA_`,
+    ].filter((l) => l !== undefined && l !== null)
+
+    const text = lines.join('\n').trim()
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank')
+  }
+
   return (
     <div className="space-y-5 print:space-y-4">
+      {/* Ficha cliente modal */}
+      {showFichaCliente && (
+        <FichaCliente
+          result={result}
+          form={form}
+          onClose={() => setShowFichaCliente(false)}
+        />
+      )}
+
       {/* ── Header ── */}
       <div className="flex items-start justify-between gap-4">
         <div>
@@ -119,7 +279,21 @@ export default function Resultados({
             {' · '}{new Date().toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' })}
           </p>
         </div>
-        <div className="flex gap-2 flex-shrink-0 print:hidden">
+        <div className="flex gap-2 flex-shrink-0 flex-wrap justify-end print:hidden">
+          <button
+            onClick={() => setShowFichaCliente(true)}
+            className="btn-secondary flex items-center gap-2"
+            title="Versión limpia para mostrar al propietario"
+          >
+            <UserCheck size={14} /> Ficha cliente
+          </button>
+          <button
+            onClick={handleWhatsApp}
+            className="btn-secondary flex items-center gap-2"
+            title="Compartir resumen por WhatsApp"
+          >
+            <Share2 size={14} /> WhatsApp
+          </button>
           <button onClick={onNuevaTasacion} className="btn-secondary">Nueva tasación</button>
           <button onClick={() => window.print()} className="btn-ghost flex items-center gap-2">
             <Download size={14} /> Imprimir
@@ -486,7 +660,3 @@ function AjusteRow({ ajuste }: { ajuste: AjusteAplicado }) {
     </div>
   )
 }
-
-// Necesario para ExternalLink aunque no se use directamente en el render
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const _unused = ExternalLink

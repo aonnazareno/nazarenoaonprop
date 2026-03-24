@@ -158,6 +158,14 @@ export interface TasacionResult {
   analisis_visual?: string
 }
 
+// ─── Cierre registrado post-tasación ─────────────────────────────────────────
+export interface CierrePropiedad {
+  precio: number
+  fecha: string
+  diasEnMercado?: number
+  notas?: string
+}
+
 // ─── Historial entry ─────────────────────────────────────────────────────────
 export interface HistorialEntry {
   id: string
@@ -172,6 +180,7 @@ export interface HistorialEntry {
   desvioSigno: string
   form: TasacionForm
   result: TasacionResult
+  cierre?: CierrePropiedad
 }
 
 export const COUNTRIES = [

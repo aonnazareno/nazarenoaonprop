@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { ChevronRight, ChevronLeft, Sparkles, Loader2, Check } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { ChevronRight, ChevronLeft, Sparkles, Loader2, Check, RotateCcw, Save } from 'lucide-react'
 import clsx from 'clsx'
 import type { TasacionForm, TasacionResult } from '../../types'
 import Step1Basicos from './Step1Basicos'
@@ -7,7 +7,7 @@ import Step2Caracteristicas from './Step2Caracteristicas'
 import Step3Comparables from './Step3Comparables'
 import Resultados from '../resultados/Resultados'
 import { analyzePhotos, generateValuation } from '../../lib/claude'
-import { saveHistorial } from '../../lib/storage'
+import { saveHistorial, getDraft, saveDraft, clearDraft } from '../../lib/storage'
 
 const INITIAL_FORM: TasacionForm = {
   tipoPropiedad: '',
@@ -56,6 +56,43 @@ export default function NuevaTasacion() {
   const [statusMsg, setStatusMsg] = useState('')
   const [error, setError] = useState('')
   const [analisisVisual, setAnalisisVisual] = useState('')
+  const [showDraftBanner, setShowDraftBanner] = useState(false)
+  const [draftSavedAt, setDraftSavedAt] = useState<Date | null>(null)
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // On mount: check for saved draft
+  useEffect(() => {
+    const draft = getDraft()
+    if (draft && (draft.tipoPropiedad || draft.ubicacion || draft.precioPretendido)) {
+      setShowDraftBanner(true)
+    }
+  }, [])
+
+  // Auto-save form to localStorage with 2s debounce
+  useEffect(() => {
+    if (result) return // don't save after generation
+    if (saveTimer.current) clearTimeout(saveTimer.current)
+    saveTimer.current = setTimeout(() => {
+      saveDraft(form)
+      setDraftSavedAt(new Date())
+    }, 2000)
+    return () => {
+      if (saveTimer.current) clearTimeout(saveTimer.current)
+    }
+  }, [form, result])
+
+  const restoreDraft = () => {
+    const draft = getDraft()
+    if (draft) {
+      setForm((prev) => ({ ...prev, ...draft, fotos: [] }))
+    }
+    setShowDraftBanner(false)
+  }
+
+  const dismissDraft = () => {
+    setShowDraftBanner(false)
+    clearDraft()
+  }
 
   const updateForm = (updates: Partial<TasacionForm>) => {
     setForm((prev) => ({ ...prev, ...updates }))
@@ -96,7 +133,7 @@ export default function NuevaTasacion() {
       setResult(tasacion)
       setStatus('done')
 
-      // Save to history
+      // Save to history and clear draft
       saveHistorial({
         id: `tasacion-${Date.now()}`,
         fecha: new Date().toISOString(),
@@ -111,6 +148,8 @@ export default function NuevaTasacion() {
         form,
         result: tasacion,
       })
+      clearDraft()
+      setDraftSavedAt(null)
     } catch (e) {
       setStatus('error')
       setError(e instanceof Error ? e.message : 'Error desconocido al generar la tasación')
@@ -142,6 +181,32 @@ export default function NuevaTasacion() {
 
   return (
     <div className="space-y-6">
+      {/* Draft restore banner */}
+      {showDraftBanner && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <RotateCcw size={15} className="text-blue-500 flex-shrink-0" />
+            <p className="text-sm text-blue-800">
+              Tenés un borrador guardado. ¿Querés continuar donde dejaste?
+            </p>
+          </div>
+          <div className="flex gap-2 flex-shrink-0">
+            <button
+              onClick={restoreDraft}
+              className="text-xs font-semibold text-blue-700 bg-blue-100 hover:bg-blue-200 px-3 py-1.5 rounded-lg transition-colors"
+            >
+              Restaurar
+            </button>
+            <button
+              onClick={dismissDraft}
+              className="text-xs text-blue-500 hover:text-blue-700 px-2 py-1.5 transition-colors"
+            >
+              Descartar
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Progress bar */}
       <ProgressBar currentStep={step} steps={STEPS} />
 
@@ -170,17 +235,27 @@ export default function NuevaTasacion() {
           Anterior
         </button>
 
-        {step < 3 ? (
-          <button
-            onClick={() => setStep((s) => s + 1)}
-            className="btn-primary flex items-center gap-2"
-          >
-            Siguiente
-            <ChevronRight size={16} />
-          </button>
-        ) : (
-          <GenerateButton status={status} statusMsg={statusMsg} onClick={handleGenerate} />
-        )}
+        <div className="flex items-center gap-3">
+          {/* Draft saved indicator */}
+          {draftSavedAt && !result && (
+            <span className="flex items-center gap-1 text-xs text-gris">
+              <Save size={11} />
+              Borrador guardado
+            </span>
+          )}
+
+          {step < 3 ? (
+            <button
+              onClick={() => setStep((s) => s + 1)}
+              className="btn-primary flex items-center gap-2"
+            >
+              Siguiente
+              <ChevronRight size={16} />
+            </button>
+          ) : (
+            <GenerateButton status={status} statusMsg={statusMsg} onClick={handleGenerate} />
+          )}
+        </div>
       </div>
 
       {/* Generating status overlay */}
