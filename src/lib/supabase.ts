@@ -12,7 +12,7 @@ export async function fetchProperties(): Promise<SupabaseProperty[]> {
     .select(
       'id, title, operation_type, property_type, neighborhood, price, currency, surface_total, surface_covered, bedrooms, bathrooms, garages, status, short_description, description'
     )
-    .eq('status', 'active')
+    // Sin filtro de status — traemos toda la cartera para tener más comparables
 
   if (error) {
     console.error('Supabase error:', error)

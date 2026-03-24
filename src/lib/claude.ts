@@ -32,7 +32,7 @@ export async function analyzePhotos(
   }))
 
   const body = {
-    model: 'claude-sonnet-4-5',
+    model: 'claude-sonnet-4-6',
     max_tokens: 1024,
     messages: [
       {
@@ -80,7 +80,7 @@ export async function searchPortales(form: TasacionForm): Promise<ComparableExte
   const query = `propiedades en venta ${tipoDesc} ${zona} Zona Oeste GBA Argentina ${m2} precio USD zonaprop argenprop mercadolibre 2024 2025`
 
   const body = {
-    model: 'claude-sonnet-4-5',
+    model: 'claude-sonnet-4-6',
     max_tokens: 2048,
     tools: [
       {
@@ -127,25 +127,34 @@ Buscá en Zonaprop, Argenprop y MercadoLibre. Devolvé SOLO el JSON array, sin t
 
   const data = await res.json()
 
-  // Find the text content in the response
-  let jsonText = ''
+  // Claude con web_search devuelve múltiples bloques: tool_use + tool_result + text
+  // Tomamos el ÚLTIMO bloque de texto que tiene el JSON final
+  const textBlocks: string[] = []
   for (const block of data.content ?? []) {
     if (block.type === 'text' && block.text) {
-      jsonText = block.text
-      break
+      textBlocks.push(block.text)
     }
   }
+  const jsonText = textBlocks[textBlocks.length - 1] ?? ''
 
-  // Try to parse JSON from the response
+  // Intentar parsear el JSON array de la respuesta
   try {
-    // Extract JSON array if wrapped in other text
     const match = jsonText.match(/\[[\s\S]*\]/)
     if (match) {
       const parsed = JSON.parse(match[0]) as Omit<ComparableExternal, 'id' | 'seleccionado'>[]
       return parsed.map((p, i) => ({ ...p, id: `portal-${i}`, seleccionado: false }))
     }
+    // Si no hay array, intentar parsear directo
+    const direct = JSON.parse(jsonText)
+    if (Array.isArray(direct)) {
+      return direct.map((p: Omit<ComparableExternal, 'id' | 'seleccionado'>, i: number) => ({
+        ...p,
+        id: `portal-${i}`,
+        seleccionado: false,
+      }))
+    }
   } catch {
-    console.warn('Could not parse portal results JSON:', jsonText)
+    console.warn('No se pudo parsear JSON de portales:', jsonText.slice(0, 200))
   }
 
   return []
@@ -232,7 +241,7 @@ CANTIDAD POR FUENTE:
 `
 
   const body = {
-    model: 'claude-sonnet-4-5',
+    model: 'claude-sonnet-4-6',
     max_tokens: 2048,
     system: `Sos el agente tasador interno de CALDERÓN PROPIEDADES, matrícula N° 227, Zona Oeste GBA. Trabajás en USD. Tipologías: countries/BC (San Patricio, San Diego CC, Campos de Álvarez, Terravista, La Cesarina, Álvarez del Bosque, Solar de Álvarez, Country Banco Provincia), casas, departamentos, lotes. En countries la diferencia entre calidad estándar y premium puede ser USD 40.000-60.000 en los mismos m². Metodología: calcular valor/m² de cada comparable, aplicar ajustes por ubicación/estado/calidad/antigüedad/liquidez, generar rango conservador/probable/optimista, estimar precio de cierre con margen 5-12% (hasta 15% en countries), detectar desvío vs precio del propietario, calcular confianza. Reglas: nunca inventar comparables, siempre distinguir precio de publicación de precio de cierre, ser conservador en baja liquidez. Responder SOLO con JSON válido sin markdown ni texto adicional: {"rango_conservador": number, "rango_probable": number, "rango_optimista": number, "cierre_min": number, "cierre_max": number, "margen_negociacion": number, "confianza_pct": number, "confianza_nivel": "Baja"|"Media"|"Alta"|"Muy alta", "confianza_nota": string, "desvio_pct": number, "desvio_signo": "neutral"|"sobrevaluado"|"subvaluado", "variables_suben": string[], "variables_bajan": string[], "variables_alerta": string[], "recomendacion": string, "recomendacion_titulo": string, "recomendacion_desc": string, "justificacion": string, "observaciones_internas": string, "requiere_visita": boolean, "requiere_visita_motivo": string}`,
     messages: [

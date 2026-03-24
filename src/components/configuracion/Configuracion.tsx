@@ -59,7 +59,7 @@ export default function Configuracion() {
           'content-type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'claude-haiku-4-5-20251001',
+          model: 'claude-haiku-4-5',
           max_tokens: 32,
           messages: [{ role: 'user', content: 'Responde solo: OK' }],
         }),
@@ -128,8 +128,8 @@ export default function Configuracion() {
 
         <div className="grid grid-cols-1 gap-2 text-sm">
           <ConfigRow label="API Key" value={maskKey(ANTHROPIC_KEY)} />
-          <ConfigRow label="Modelo tasación" value="claude-sonnet-4-5" />
-          <ConfigRow label="Modelo visión" value="claude-sonnet-4-5" />
+          <ConfigRow label="Modelo tasación" value="claude-sonnet-4-6" />
+          <ConfigRow label="Modelo visión" value="claude-sonnet-4-6" />
           <ConfigRow label="Búsqueda web" value="Habilitada (web-search-2025-03-05)" />
         </div>
 
