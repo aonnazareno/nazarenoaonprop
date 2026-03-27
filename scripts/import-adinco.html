@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Importar Adinco → Supabase</title>
+  <style>
+    body { font-family: monospace; background: #0f0f0f; color: #e0e0e0; padding: 2rem; max-width: 700px; margin: auto; }
+    h1 { color: #4ade80; }
+    button { background: #4ade80; color: #000; border: none; padding: 0.8rem 2rem; font-size: 1rem; cursor: pointer; border-radius: 6px; margin-top: 1rem; }
+    button:disabled { background: #444; color: #888; cursor: not-allowed; }
+    #log { margin-top: 1.5rem; background: #1a1a1a; padding: 1rem; border-radius: 6px; min-height: 100px; white-space: pre-wrap; line-height: 1.6; }
+    .ok { color: #4ade80; }
+    .err { color: #f87171; }
+    .info { color: #60a5fa; }
+  </style>
+</head>
+<body>
+  <h1>Importar Adinco → Supabase</h1>
+  <p>Hace click en el botón y espera. Va a descargar todas las propiedades del XML y cargarlas en Supabase.</p>
+  <button id="btn" onclick="run()">Importar propiedades</button>
+  <div id="log">Listo para importar...</div>
+
+  <script>
+    const ADINCO_URL = 'https://feeds.adinco.net/17198/ar_adinco.xml'
+    const SUPABASE_URL = 'https://btvqlinzgqjltvebkzez.supabase.co'
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ0dnFsaW56Z3FqbHR2ZWJremV6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE3ODQ4NjQsImV4cCI6MjA4NzM2MDg2NH0.9HMCP-maADpLgAl-jQcYUaUw2SSxL409BEzK_bPab6M'
+
+    const logEl = document.getElementById('log')
+    function log(msg, type = '') {
+      logEl.innerHTML += `<span class="${type}">${msg}</span>\n`
+      logEl.scrollTop = logEl.scrollHeight
+    }
+
+    function mapItem(item) {
+      const text = (el) => el ? el.textContent.trim() : ''
+      const num = (el) => el ? parseFloat(el.textContent) || null : null
+      const int = (el) => el ? parseInt(el.textContent) || null : null
+
+      const id = text(item.querySelector('ID, Id, id'))
+      const title = text(item.querySelector('Titulo, titulo, Title'))
+      const opRaw = text(item.querySelector('TipoOperacion, Operacion, operacion'))
+      const operation_type = opRaw.toLowerCase().includes('alquiler') ? 'alquiler' : 'venta'
+      const property_type = text(item.querySelector('TipoPropiedad, Tipo, tipo'))
+      const neighborhood = text(item.querySelector('Barrio, barrio, Zona, zona, Localidad'))
+      const price = num(item.querySelector('Precio, precio'))
+      const monedaRaw = text(item.querySelector('Moneda, moneda'))
+      const currency = monedaRaw.toUpperCase().includes('PESO') ? 'ARS' : 'USD'
+      const surface_total = num(item.querySelector('SuperficieTotal, Superficie'))
+      const surface_covered = num(item.querySelector('SuperficieCubierta'))
+      const bedrooms = int(item.querySelector('Dormitorios, Habitaciones'))
+      const bathrooms = int(item.querySelector('Banos, Baños, banos'))
+      const garages = int(item.querySelector('Cocheras, cocheras'))
+      const description = text(item.querySelector('Descripcion, descripcion, Observaciones'))
+      const short_description = description.slice(0, 200)
+
+      return { id: id || undefined, title, operation_type, property_type, neighborhood, price, currency, surface_total, surface_covered, bedrooms, bathrooms, garages, description, short_description, status: 'disponible' }
+    }
+
+    async function upsertBatch(rows) {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/properties`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': SUPABASE_KEY,
+          'Authorization': `Bearer ${SUPABASE_KEY}`,
+          'Prefer': 'resolution=merge-duplicates'
+        },
+        body: JSON.stringify(rows)
+      })
+      if (!res.ok) {
+        const err = await res.text()
+        throw new Error(err)
+      }
+    }
+
+    async function run() {
+      document.getElementById('btn').disabled = true
+      logEl.innerHTML = ''
+      try {
+        log('Descargando XML de Adinco...', 'info')
+        const res = await fetch(ADINCO_URL)
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        const xml = await res.text()
+        log(`XML descargado (${Math.round(xml.length/1024)} KB)`, 'info')
+
+        const parser = new DOMParser()
+        const doc = parser.parseFromString(xml, 'application/xml')
+
+        // Intentar distintos nombres de elemento
+        let items = [...doc.querySelectorAll('Inmueble')]
+        if (!items.length) items = [...doc.querySelectorAll('inmueble')]
+        if (!items.length) items = [...doc.querySelectorAll('Property')]
+        if (!items.length) items = [...doc.querySelectorAll('property')]
+
+        if (!items.length) {
+          // Mostrar qué tags hay para debug
+          const root = doc.documentElement
+          log(`Root tag: <${root.tagName}>. Children: ${[...root.children].map(c=>c.tagName).slice(0,10).join(', ')}`, 'err')
+          throw new Error('No se encontraron propiedades en el XML. Mandá screenshot del error a tu dev.')
+        }
+
+        log(`Propiedades encontradas: ${items.length}`, 'ok')
+        log('Cargando en Supabase...', 'info')
+
+        const rows = items.map(mapItem)
+        const BATCH = 50
+        let done = 0
+        for (let i = 0; i < rows.length; i += BATCH) {
+          const batch = rows.slice(i, i + BATCH)
+          await upsertBatch(batch)
+          done += batch.length
+          log(`  ✓ ${done}/${rows.length}`, 'ok')
+        }
+
+        log(`\n¡Listo! ${done} propiedades importadas a Supabase.`, 'ok')
+      } catch(e) {
+        log(`ERROR: ${e.message}`, 'err')
+      }
+      document.getElementById('btn').disabled = false
+    }
+  </script>
+</body>
+</html>
