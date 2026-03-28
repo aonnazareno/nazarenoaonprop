@@ -80,12 +80,12 @@ export async function searchPortales(form: TasacionForm): Promise<ComparableExte
 
   const body = {
     model: 'claude-sonnet-4-6',
-    max_tokens: 3000,
+    max_tokens: 2000,
     tools: [
       {
         type: 'web_search_20250305',
         name: 'web_search',
-        max_uses: 5,
+        max_uses: 3,
       },
     ],
     system: `Sos un investigador de mercado inmobiliario para Zona Oeste GBA Argentina especializado en tasaciones.
@@ -211,57 +211,7 @@ REGLAS CRÍTICAS:
 - Sé conservador en baja liquidez
 - Mostrá TODO el razonamiento — el corredor necesita explicarle al propietario cómo llegaste al número
 
-FORMATO DE RESPUESTA: SOLO JSON válido, sin markdown, sin texto antes ni después.
-
-JSON schema obligatorio:
-{
-  "rango_conservador": number,
-  "rango_probable": number,
-  "rango_optimista": number,
-  "cierre_min": number,
-  "cierre_max": number,
-  "margen_negociacion": number,
-  "valor_m2_mercado": number,
-  "valor_m2_propiedad": number,
-  "confianza_pct": number,
-  "confianza_nivel": "Baja"|"Media"|"Alta"|"Muy alta",
-  "confianza_nota": string,
-  "desvio_pct": number,
-  "desvio_signo": "neutral"|"sobrevaluado"|"subvaluado",
-  "comparables_analizados": [
-    {
-      "titulo": string,
-      "fuente": string,
-      "precio_publicacion": number|null,
-      "m2": number|null,
-      "valor_m2": number|null,
-      "ajuste_pct": number,
-      "ajuste_motivos": string,
-      "valor_m2_ajustado": number|null,
-      "incluido": boolean,
-      "motivo_inclusion": string
-    }
-  ],
-  "ajustes_aplicados": [
-    {
-      "concepto": string,
-      "impacto_pct": number,
-      "descripcion": string
-    }
-  ],
-  "metodologia": string,
-  "calculo_paso_a_paso": string,
-  "variables_suben": string[],
-  "variables_bajan": string[],
-  "variables_alerta": string[],
-  "recomendacion": string,
-  "recomendacion_titulo": string,
-  "recomendacion_desc": string,
-  "justificacion": string,
-  "observaciones_internas": string,
-  "requiere_visita": boolean,
-  "requiere_visita_motivo": string
-}`
+FORMATO DE RESPUESTA: SOLO JSON válido, sin markdown, sin texto antes ni después. Incluí todos los campos del schema que se te enviará en el mensaje del usuario.`
 
 // ─── Main valuation ───────────────────────────────────────────────────────────
 export async function generateValuation(
@@ -351,17 +301,20 @@ PROPIEDAD A TASAR:
 ${mercadoZona}
 
 ANÁLISIS VISUAL DE FOTOS (${form.fotos.length} fotos):
-${analisisVisual || 'Sin fotos — no hay análisis visual disponible'}
+${analisisVisual ? analisisVisual.slice(0, 600) : 'Sin fotos'}
 
 COMPARABLES DISPONIBLES (${allComparables.length} total):
 - De cartera propia: ${selectedSupabase.length}
 - De portales externos: ${selectedPortales.length}
 - Carga manual: ${selectedManuales.length}
 
-${allComparables.length > 0 ? JSON.stringify(allComparables, null, 2) : 'Sin comparables — usá criterio de mercado general y bajá la confianza'}
+${allComparables.length > 0 ? JSON.stringify(allComparables) : 'Sin comparables — usá criterio de mercado general y bajá la confianza'}
 
 INSTRUCCIÓN FINAL:
-Analizá cada comparable, mostrá el cálculo de valor/m², los ajustes, y explicá detalladamente cómo llegás al rango de tasación. El corredor tiene que poder mostrarle este informe al propietario y explicar cada número.`
+Analizá cada comparable, mostrá el cálculo de valor/m², los ajustes, y explicá cómo llegás al rango de tasación.
+
+SCHEMA JSON requerido (devolvé exactamente estos campos):
+{"rango_conservador":number,"rango_probable":number,"rango_optimista":number,"cierre_min":number,"cierre_max":number,"margen_negociacion":number,"valor_m2_mercado":number,"valor_m2_propiedad":number,"confianza_pct":number,"confianza_nivel":"Baja"|"Media"|"Alta"|"Muy alta","confianza_nota":string,"desvio_pct":number,"desvio_signo":"neutral"|"sobrevaluado"|"subvaluado","comparables_analizados":[{"titulo":string,"fuente":string,"precio_publicacion":number|null,"m2":number|null,"valor_m2":number|null,"ajuste_pct":number,"ajuste_motivos":string,"valor_m2_ajustado":number|null,"incluido":boolean,"motivo_inclusion":string}],"ajustes_aplicados":[{"concepto":string,"impacto_pct":number,"descripcion":string}],"metodologia":string,"calculo_paso_a_paso":string,"variables_suben":string[],"variables_bajan":string[],"variables_alerta":string[],"recomendacion":string,"recomendacion_titulo":string,"recomendacion_desc":string,"justificacion":string,"observaciones_internas":string,"requiere_visita":boolean,"requiere_visita_motivo":string}`
 
   const res = await fetch(BASE_URL, {
     method: 'POST',
