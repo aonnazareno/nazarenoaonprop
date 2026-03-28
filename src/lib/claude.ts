@@ -321,7 +321,7 @@ SCHEMA JSON requerido (devolvé exactamente estos campos):
     headers: getCommonHeaders(),
     body: JSON.stringify({
       model: 'claude-sonnet-4-6',
-      max_tokens: 4096,
+      max_tokens: 8096,
       system: SYSTEM_PROMPT,
       messages: [{ role: 'user', content: contextStr }],
     }),
@@ -333,11 +333,13 @@ SCHEMA JSON requerido (devolvé exactamente estos campos):
   const text = data.content?.[0]?.text ?? '{}'
 
   try {
-    const clean = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim()
-    const match = clean.match(/\{[\s\S]*\}/)
-    if (match) return JSON.parse(match[0]) as TasacionResult
-    return JSON.parse(clean) as TasacionResult
+    const stripped = text.replace(/^[\s\S]*?(\{)/m, '{').replace(/\}[\s\S]*$/, '}')
+    return JSON.parse(stripped) as TasacionResult
   } catch {
+    const match = text.match(/\{[\s\S]*\}/)
+    if (match) {
+      try { return JSON.parse(match[0]) as TasacionResult } catch { /* fall through */ }
+    }
     throw new Error('Error parseando respuesta de Claude: ' + text.slice(0, 500))
   }
 }
