@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Subir XML a Supabase</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #0f0f0f; color: #e0e0e0; padding: 2rem; max-width: 600px; margin: auto; }
+    h1 { color: #4ade80; font-size: 1.4rem; }
+    .box { background: #1a1a1a; border: 2px dashed #444; border-radius: 10px; padding: 2rem; text-align: center; margin: 1.5rem 0; cursor: pointer; }
+    .box:hover { border-color: #4ade80; }
+    input[type=file] { display: none; }
+    button { background: #4ade80; color: #000; border: none; padding: 0.8rem 2rem; font-size: 1rem; cursor: pointer; border-radius: 6px; width: 100%; margin-top: 1rem; font-weight: bold; }
+    button:disabled { background: #444; color: #888; cursor: not-allowed; }
+    #log { margin-top: 1.5rem; background: #1a1a1a; padding: 1rem; border-radius: 6px; min-height: 80px; white-space: pre-wrap; line-height: 1.8; font-family: monospace; }
+    .ok { color: #4ade80; }
+    .err { color: #f87171; }
+    .info { color: #60a5fa; }
+    #filename { color: #4ade80; margin-top: 0.5rem; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <h1>Importar propiedades XML → Supabase</h1>
+  <p>Seleccioná tu archivo XML de Adinco y hace click en Importar.</p>
+
+  <div class="box" onclick="document.getElementById('fileInput').click()">
+    Hacer click para seleccionar el archivo XML
+    <div id="filename"></div>
+  </div>
+  <input type="file" id="fileInput" accept=".xml" onchange="onFile(this)">
+
+  <button id="btn" onclick="run()" disabled>Importar a Supabase</button>
+  <div id="log">Esperando archivo...</div>
+
+  <script>
+    const SUPABASE_URL = 'https://btvqlinzgqjltvebkzez.supabase.co'
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ0dnFsaW56Z3FqbHR2ZWJremV6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE3ODQ4NjQsImV4cCI6MjA4NzM2MDg2NH0.9HMCP-maADpLgAl-jQcYUaUw2SSxL409BEzK_bPab6M'
+
+    let xmlContent = ''
+
+    function onFile(input) {
+      const file = input.files[0]
+      if (!file) return
+      document.getElementById('filename').textContent = '✓ ' + file.name
+      const reader = new FileReader()
+      reader.onload = e => {
+        xmlContent = e.target.result
+        document.getElementById('btn').disabled = false
+        document.getElementById('log').innerHTML = '<span class="ok">Archivo listo. Hace click en Importar.</span>'
+      }
+      reader.readAsText(file)
+    }
+
+    function mapItem(item) {
+      const t = n => {
+        for (const tag of n.split(',')) {
+          const el = item.querySelector(tag.trim())
+          if (el) return el.textContent.trim()
+        }
+        return null
+      }
+      const desc = t('Descripcion, descripcion, Observaciones') || ''
+      const op = (t('TipoOperacion, Operacion, operacion') || '').toLowerCase()
+      const moneda = (t('Moneda, moneda') || 'USD').toUpperCase()
+      return {
+        title: t('Titulo, titulo, Title') || '',
+        operation_type: op.includes('alquiler') ? 'alquiler' : 'venta',
+        property_type: t('TipoPropiedad, Tipo, tipo') || '',
+        neighborhood: t('Barrio, barrio, Zona, zona, Localidad, localidad') || '',
+        price: parseFloat(t('Precio, precio')) || null,
+        currency: moneda.includes('PESO') || moneda.includes('ARS') ? 'ARS' : 'USD',
+        surface_total: parseFloat(t('SuperficieTotal, Superficie, superficieTotal')) || null,
+        surface_covered: parseFloat(t('SuperficieCubierta, superficieCubierta')) || null,
+        bedrooms: parseInt(t('Dormitorios, dormitorios, Habitaciones')) || null,
+        bathrooms: parseInt(t('Banos, Baños, banos, baños')) || null,
+        garages: parseInt(t('Cocheras, cocheras')) || null,
+        description: desc,
+        short_description: desc.slice(0, 200),
+        status: 'disponible'
+      }
+    }
+
+    async function run() {
+      if (!xmlContent) return
+      document.getElementById('btn').disabled = true
+      const log = document.getElementById('log')
+      log.innerHTML = ''
+
+      const addLog = (msg, type='') => {
+        log.innerHTML += `<span class="${type}">${msg}</span>\n`
+      }
+
+      try {
+        addLog('Parseando XML...', 'info')
+        const doc = new DOMParser().parseFromString(xmlContent, 'application/xml')
+
+        const parseErr = doc.querySelector('parsererror')
+        if (parseErr) throw new Error('XML inválido: ' + parseErr.textContent.slice(0, 100))
+
+        let items = [...doc.querySelectorAll('Inmueble')]
+        if (!items.length) items = [...doc.querySelectorAll('inmueble')]
+        if (!items.length) items = [...doc.querySelectorAll('Property')]
+        if (!items.length) items = [...doc.querySelectorAll('property')]
+
+        if (!items.length) {
+          const root = doc.documentElement
+          const children = [...root.children].slice(0, 8).map(c => c.tagName).join(', ')
+          addLog(`No se encontraron propiedades. Tags encontrados: ${root.tagName} > ${children}`, 'err')
+          addLog('Mandá un screenshot de este error.', 'err')
+          document.getElementById('btn').disabled = false
+          return
+        }
+
+        addLog(`✓ ${items.length} propiedades encontradas`, 'ok')
+        addLog('Enviando a Supabase...', 'info')
+
+        const rows = items.map(mapItem)
+        const BATCH = 50
+        let done = 0
+
+        for (let i = 0; i < rows.length; i += BATCH) {
+          const batch = rows.slice(i, i + BATCH)
+          const res = await fetch(`${SUPABASE_URL}/rest/v1/properties`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': SUPABASE_KEY,
+              'Authorization': 'Bearer ' + SUPABASE_KEY,
+              'Prefer': 'resolution=merge-duplicates'
+            },
+            body: JSON.stringify(batch)
+          })
+          if (!res.ok) {
+            const err = await res.text()
+            throw new Error('Error Supabase: ' + err)
+          }
+          done += batch.length
+          addLog(`  ✓ ${done}/${rows.length}`, 'ok')
+        }
+
+        addLog(`\n¡LISTO! ${done} propiedades cargadas en Supabase.`, 'ok')
+        addLog('Ahora abrí tasadoria.html y vas a ver tus propiedades en "Cartera".', 'ok')
+      } catch(e) {
+        addLog('ERROR: ' + e.message, 'err')
+      }
+      document.getElementById('btn').disabled = false
+    }
+  </script>
+</body>
+</html>
