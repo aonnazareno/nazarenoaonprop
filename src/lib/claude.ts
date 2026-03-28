@@ -333,9 +333,10 @@ SCHEMA JSON requerido (devolvé exactamente estos campos):
   const text = data.content?.[0]?.text ?? '{}'
 
   try {
-    const match = text.match(/\{[\s\S]*\}/)
+    const clean = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim()
+    const match = clean.match(/\{[\s\S]*\}/)
     if (match) return JSON.parse(match[0]) as TasacionResult
-    return JSON.parse(text) as TasacionResult
+    return JSON.parse(clean) as TasacionResult
   } catch {
     throw new Error('Error parseando respuesta de Claude: ' + text.slice(0, 500))
   }
