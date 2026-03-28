@@ -16,8 +16,16 @@ export function getHistorial(): HistorialEntry[] {
 
 export function saveHistorial(entry: HistorialEntry): void {
   const entries = getHistorial()
-  const updated = [entry, ...entries].slice(0, MAX_ENTRIES)
-  localStorage.setItem(KEY, JSON.stringify(updated))
+  let updated = [entry, ...entries].slice(0, MAX_ENTRIES)
+  // Si supera la cuota, reducir hasta que entre
+  while (updated.length > 0) {
+    try {
+      localStorage.setItem(KEY, JSON.stringify(updated))
+      return
+    } catch {
+      updated = updated.slice(0, Math.floor(updated.length * 0.7))
+    }
+  }
 }
 
 export function updateHistorialEntry(id: string, updates: Partial<HistorialEntry>): void {

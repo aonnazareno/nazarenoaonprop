@@ -85,3 +85,36 @@
 .dropzone.active {
   @apply border-verde bg-verde-muted;
 }
+
+/* ── Print / PDF ─────────────────────────────────────────────────── */
+@media print {
+  * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+
+  body { background: white !important; font-size: 11px; }
+
+  /* Ocultar elementos de navegación */
+  header, nav, .print\:hidden { display: none !important; }
+
+  /* Mostrar todo el contenido colapsado */
+  [class*="hidden"] { display: block !important; }
+
+  /* Cards sin sombra */
+  .card { box-shadow: none !important; border: 1px solid #e5e7eb !important; break-inside: avoid; }
+
+  /* Saltos de página */
+  .card { page-break-inside: avoid; }
+
+  /* Tipografía */
+  .font-cormorant { font-family: Georgia, serif !important; }
+
+  /* Colores de fondo para rangos y chips */
+  .bg-verde-muted { background-color: #f0faf4 !important; }
+  .bg-crema { background-color: #fafaf7 !important; }
+  .bg-verde-light { background-color: #dcfce7 !important; }
+
+  /* Márgenes de página */
+  @page {
+    margin: 1.5cm 2cm;
+    size: A4;
+  }
+}

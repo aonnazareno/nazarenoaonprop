@@ -295,8 +295,8 @@ export default function Resultados({
             <Share2 size={14} /> WhatsApp
           </button>
           <button onClick={onNuevaTasacion} className="btn-secondary">Nueva tasación</button>
-          <button onClick={() => window.print()} className="btn-ghost flex items-center gap-2">
-            <Download size={14} /> Imprimir
+          <button onClick={() => { window.print() }} className="btn-primary flex items-center gap-2">
+            <Download size={14} /> Descargar PDF
           </button>
         </div>
       </div>
