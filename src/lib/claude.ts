@@ -332,14 +332,14 @@ SCHEMA JSON requerido (devolvé exactamente estos campos):
   const data = await res.json()
   const text = data.content?.[0]?.text ?? '{}'
 
+  const start = text.indexOf('{')
+  const end = text.lastIndexOf('}')
+  if (start === -1 || end === -1 || end <= start) {
+    throw new Error('Error parseando respuesta de Claude: ' + text.slice(0, 500))
+  }
   try {
-    const stripped = text.replace(/^[\s\S]*?(\{)/m, '{').replace(/\}[\s\S]*$/, '}')
-    return JSON.parse(stripped) as TasacionResult
+    return JSON.parse(text.slice(start, end + 1)) as TasacionResult
   } catch {
-    const match = text.match(/\{[\s\S]*\}/)
-    if (match) {
-      try { return JSON.parse(match[0]) as TasacionResult } catch { /* fall through */ }
-    }
     throw new Error('Error parseando respuesta de Claude: ' + text.slice(0, 500))
   }
 }
