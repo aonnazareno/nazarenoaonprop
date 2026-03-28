@@ -211,7 +211,7 @@ REGLAS CRÍTICAS:
 - Sé conservador en baja liquidez
 - Mostrá TODO el razonamiento — el corredor necesita explicarle al propietario cómo llegaste al número
 
-FORMATO DE RESPUESTA: SOLO JSON válido, sin markdown, sin texto antes ni después. Incluí todos los campos del schema que se te enviará en el mensaje del usuario.`
+FORMATO DE RESPUESTA: Respondé ÚNICAMENTE con el objeto JSON. Tu respuesta debe empezar con el carácter { y terminar con }. Sin markdown, sin \`\`\`, sin texto antes ni después.`
 
 // ─── Main valuation ───────────────────────────────────────────────────────────
 export async function generateValuation(
