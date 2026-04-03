@@ -1,16 +1,18 @@
 import { useState } from 'react'
-import { ClipboardList, History, Settings } from 'lucide-react'
+import { ClipboardList, History, Settings, Megaphone } from 'lucide-react'
 import Header from './components/Header'
 import NuevaTasacion from './components/nueva-tasacion/NuevaTasacion'
 import Historial from './components/historial/Historial'
 import Configuracion from './components/configuracion/Configuracion'
+import Campanas from './components/campanas/Campanas'
 import clsx from 'clsx'
 
-type Tab = 'nueva' | 'historial' | 'configuracion'
+type Tab = 'nueva' | 'historial' | 'campanas' | 'configuracion'
 
 const TABS: { id: Tab; label: string; Icon: React.ElementType }[] = [
   { id: 'nueva', label: 'Nueva tasación', Icon: ClipboardList },
   { id: 'historial', label: 'Historial', Icon: History },
+  { id: 'campanas', label: 'Campañas', Icon: Megaphone },
   { id: 'configuracion', label: 'Configuración', Icon: Settings },
 ]
 
@@ -49,6 +51,7 @@ export default function App() {
       <main className="flex-1 max-w-5xl mx-auto w-full px-4 py-6">
         {activeTab === 'nueva' && <NuevaTasacion />}
         {activeTab === 'historial' && <Historial onOpen={() => setActiveTab('nueva')} />}
+        {activeTab === 'campanas' && <Campanas />}
         {activeTab === 'configuracion' && <Configuracion />}
       </main>
     </div>
