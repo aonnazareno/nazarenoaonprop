@@ -1,5 +1,5 @@
 node_modules
-dist
+dist/assets
 .env
 .env.local
 .DS_Store
