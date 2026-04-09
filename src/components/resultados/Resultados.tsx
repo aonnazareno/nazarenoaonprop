@@ -18,6 +18,7 @@ import {
 import { useState } from 'react'
 import clsx from 'clsx'
 import type { TasacionResult, TasacionForm, ComparableAnalizado, AjusteAplicado } from '../../types'
+import { generatePDFReport } from '../../lib/pdfReport'
 
 interface Props {
   result: TasacionResult
@@ -295,7 +296,16 @@ export default function Resultados({
             <Share2 size={14} /> WhatsApp
           </button>
           <button onClick={onNuevaTasacion} className="btn-secondary">Nueva tasación</button>
-          <button onClick={() => { window.print() }} className="btn-primary flex items-center gap-2">
+          <button
+            onClick={() =>
+              generatePDFReport(result, form, {
+                supabase: comparablesSupabaseCount,
+                portales: comparablesPortalesCount,
+                manuales: comparablesManualesCount,
+              })
+            }
+            className="btn-primary flex items-center gap-2"
+          >
             <Download size={14} /> Descargar PDF
           </button>
         </div>

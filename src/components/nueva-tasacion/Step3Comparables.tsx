@@ -225,7 +225,7 @@ export default function Step3Comparables({ form, onChange }: Props) {
 
             <div className="space-y-2">
               {form.comparablesPortales.map((c) => (
-                <PortalCard key={c.id} comp={c} onToggle={() => togglePortal(c.id)} />
+                <PortalCard key={c.id} comp={c} form={form} onToggle={() => togglePortal(c.id)} />
               ))}
             </div>
           </div>
@@ -403,14 +403,68 @@ function SupabaseCard({
   )
 }
 
+// ─── Portal similarity score ──────────────────────────────────────────────────
+function portalSimilarityScore(comp: ComparableExternal, form: TasacionForm): number {
+  let score = 0
+
+  // ZONA (40 pts)
+  const zona = (comp.zona ?? '').toLowerCase()
+  const country = (form.country ?? '').toLowerCase()
+  const ubicacion = (form.ubicacion ?? '').toLowerCase()
+  if (country && zona.includes(country)) {
+    score += 40
+  } else if (ubicacion && zona.includes(ubicacion)) {
+    score += 35
+  } else if (ubicacion) {
+    const words = ubicacion.split(/\s+/).filter((w) => w.length >= 4)
+    if (words.some((w) => zona.includes(w))) score += 15
+  }
+
+  // M² (25 pts)
+  const formM2 = parseFloat(form.m2Cubiertos ?? '')
+  const compM2 = comp.m2_cubiertos
+  if (!isNaN(formM2) && formM2 > 0 && compM2 && compM2 > 0) {
+    const ratio = Math.abs(formM2 - compM2) / formM2
+    if (ratio <= 0.10) score += 25
+    else if (ratio <= 0.20) score += 18
+    else if (ratio <= 0.30) score += 10
+    else if (ratio <= 0.50) score += 5
+  }
+
+  // PRECIO (20 pts)
+  const formPrecio = parseFloat(form.precioPretendido ?? '')
+  const compPrecio = comp.precio_usd
+  if (!isNaN(formPrecio) && formPrecio > 0 && compPrecio && compPrecio > 0) {
+    const ratio = Math.abs(formPrecio - compPrecio) / formPrecio
+    if (ratio <= 0.15) score += 20
+    else if (ratio <= 0.30) score += 12
+    else if (ratio <= 0.50) score += 6
+  }
+
+  // AMBIENTES (15 pts)
+  const formAmb = parseInt(form.ambientes ?? '0', 10)
+  const compAmb = comp.ambientes
+  if (formAmb > 0 && compAmb && compAmb > 0) {
+    const diff = Math.abs(formAmb - compAmb)
+    if (diff === 0) score += 15
+    else if (diff === 1) score += 8
+    else if (diff === 2) score += 3
+  }
+
+  return Math.min(100, score)
+}
+
 // ─── Portal card ──────────────────────────────────────────────────────────────
 function PortalCard({
   comp,
+  form,
   onToggle,
 }: {
   comp: ComparableExternal
+  form: TasacionForm
   onToggle: () => void
 }) {
+  const score = portalSimilarityScore(comp, form)
   return (
     <div
       className={clsx(
@@ -431,9 +485,23 @@ function PortalCard({
       <div className="flex-1 min-w-0 cursor-pointer" onClick={onToggle}>
         <div className="flex items-start justify-between gap-2">
           <p className="text-sm font-medium text-gray-800">{comp.titulo}</p>
-          <span className="chip bg-blue-50 text-blue-600 text-[10px] flex-shrink-0">
-            {comp.fuente}
-          </span>
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            <span
+              className={clsx(
+                'chip text-[10px]',
+                score >= 70
+                  ? 'bg-verde-light text-verde'
+                  : score >= 40
+                  ? 'bg-yellow-50 text-yellow-700'
+                  : 'bg-gray-100 text-gris-dark'
+              )}
+            >
+              {score}% similar
+            </span>
+            <span className="chip bg-blue-50 text-blue-600 text-[10px]">
+              {comp.fuente}
+            </span>
+          </div>
         </div>
         <div className="flex flex-wrap gap-3 mt-1 text-xs text-gris">
           {comp.zona && <span>{comp.zona}</span>}
