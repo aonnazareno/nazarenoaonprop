@@ -105,13 +105,18 @@ export default function NuevaTasacion() {
     try {
       let visualAnalysis = ''
 
-      // Step 1: analyze photos if available
-      if (form.fotos.length > 0) {
+      // Step 1: analyze photos + PDFs if available (videos are skipped by analyzePhotos internally)
+      const analyzableFiles = form.fotos.filter((f) => f.tipo !== 'video')
+      if (analyzableFiles.length > 0) {
+        const imgCount = analyzableFiles.filter((f) => !f.tipo || f.tipo === 'imagen').length
+        const pdfCount = analyzableFiles.filter((f) => f.tipo === 'pdf').length
+        const label = [
+          imgCount > 0 ? `${imgCount} foto${imgCount > 1 ? 's' : ''}` : '',
+          pdfCount > 0 ? `${pdfCount} PDF${pdfCount > 1 ? 's' : ''}` : '',
+        ].filter(Boolean).join(' y ')
         setStatus('analyzing_photos')
-        setStatusMsg(`Analizando ${form.fotos.length} foto${form.fotos.length > 1 ? 's' : ''} con IA...`)
-        visualAnalysis = await analyzePhotos(
-          form.fotos.map((f) => ({ dataUrl: f.dataUrl, mimeType: f.mimeType }))
-        )
+        setStatusMsg(`Analizando ${label} con IA...`)
+        visualAnalysis = await analyzePhotos(form.fotos)
         setAnalisisVisual(visualAnalysis)
       }
 

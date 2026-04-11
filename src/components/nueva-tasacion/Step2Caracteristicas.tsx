@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { Upload, X, Link, ChevronDown } from 'lucide-react'
+import { Upload, X, Link, ChevronDown, FileVideo, FileText, Image } from 'lucide-react'
 import clsx from 'clsx'
 import type { TasacionForm, PhotoFile } from '../../types'
 import {
@@ -50,33 +50,72 @@ function NumberStepper({
   )
 }
 
+function formatSize(bytes?: number): string {
+  if (!bytes) return ''
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
 export default function Step2Caracteristicas({ form, onChange }: Props) {
   const [isDragging, setIsDragging] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const processFiles = (files: FileList | null) => {
     if (!files) return
-    const validFiles = Array.from(files).filter((f) =>
-      ['image/jpeg', 'image/png', 'image/webp'].includes(f.type)
+    const fileArray = Array.from(files).filter((f) =>
+      f.type.startsWith('image/') || f.type.startsWith('video/') || f.type === 'application/pdf'
     )
-    validFiles.forEach((file) => {
+    if (fileArray.length === 0) return
+
+    // Videos: use blob URL (no FileReader, avoids loading large files into memory)
+    const newFiles: PhotoFile[] = fileArray
+      .filter((f) => f.type.startsWith('video/'))
+      .map((f) => ({
+        id: `video-${Date.now()}-${Math.random()}`,
+        name: f.name,
+        dataUrl: URL.createObjectURL(f),
+        mimeType: f.type,
+        tipo: 'video' as const,
+        size: f.size,
+      }))
+
+    // Images + PDFs: read as base64 via FileReader
+    const asyncFiles = fileArray.filter((f) => !f.type.startsWith('video/'))
+    if (asyncFiles.length === 0) {
+      onChange({ fotos: [...form.fotos, ...newFiles] })
+      return
+    }
+
+    let done = 0
+    asyncFiles.forEach((file) => {
+      const tipo: 'imagen' | 'pdf' = file.type === 'application/pdf' ? 'pdf' : 'imagen'
       const reader = new FileReader()
       reader.onload = (e) => {
-        const photo: PhotoFile = {
-          id: `photo-${Date.now()}-${Math.random()}`,
+        newFiles.push({
+          id: `${tipo}-${Date.now()}-${Math.random()}`,
           name: file.name,
           dataUrl: e.target?.result as string,
           mimeType: file.type,
+          tipo,
+          size: file.size,
+        })
+        done++
+        if (done === asyncFiles.length) {
+          // Single update after all reads complete — no race condition
+          onChange({ fotos: [...form.fotos, ...newFiles] })
         }
-        onChange({ fotos: [...form.fotos, photo] })
       }
       reader.readAsDataURL(file)
     })
   }
 
-  const removePhoto = (id: string) => {
+  const removeFile = (id: string) => {
     onChange({ fotos: form.fotos.filter((f) => f.id !== id) })
   }
+
+  const imageCount = form.fotos.filter((f) => !f.tipo || f.tipo === 'imagen').length
+  const videoCount = form.fotos.filter((f) => f.tipo === 'video').length
+  const pdfCount = form.fotos.filter((f) => f.tipo === 'pdf').length
 
   return (
     <div className="space-y-6">
@@ -241,11 +280,20 @@ export default function Step2Caracteristicas({ form, onChange }: Props) {
         />
       </div>
 
-      {/* Fotos */}
+      {/* Archivos */}
       <div className="card">
-        <h3 className="font-cormorant text-lg font-semibold mb-1">Fotos de la propiedad</h3>
+        <div className="flex items-start justify-between mb-1">
+          <h3 className="font-cormorant text-lg font-semibold">Archivos de la propiedad</h3>
+          {form.fotos.length > 0 && (
+            <div className="flex gap-2 text-[11px] text-gris">
+              {imageCount > 0 && <span className="chip bg-verde-light text-verde">{imageCount} foto{imageCount !== 1 ? 's' : ''}</span>}
+              {videoCount > 0 && <span className="chip bg-blue-50 text-blue-600">{videoCount} video{videoCount !== 1 ? 's' : ''}</span>}
+              {pdfCount > 0 && <span className="chip bg-orange-50 text-orange-600">{pdfCount} PDF{pdfCount !== 1 ? 's' : ''}</span>}
+            </div>
+          )}
+        </div>
         <p className="text-xs text-gris mb-4">
-          La IA analiza las fotos para detectar estado, calidad y terminaciones. JPG / PNG / WEBP.
+          Imágenes (analizadas por IA) · PDFs como planos o escrituras (leídos por IA) · Videos (referencia)
         </p>
 
         {/* Dropzone */}
@@ -262,34 +310,62 @@ export default function Step2Caracteristicas({ form, onChange }: Props) {
         >
           <Upload size={24} className="mx-auto mb-2 text-gris" />
           <p className="text-sm font-medium text-gray-600">
-            Arrastrá fotos acá o hacé click para seleccionar
+            Arrastrá archivos acá o hacé click para seleccionar
           </p>
-          <p className="text-xs text-gris mt-1">Máximo 6 fotos recomendadas</p>
+          <div className="flex justify-center gap-3 mt-2 text-xs text-gris">
+            <span className="flex items-center gap-1"><Image size={11} /> JPG · PNG · WEBP</span>
+            <span className="flex items-center gap-1"><FileText size={11} /> PDF</span>
+            <span className="flex items-center gap-1"><FileVideo size={11} /> MP4 · MOV</span>
+          </div>
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/jpeg,image/png,image/webp"
+            accept="image/*,video/*,application/pdf"
             multiple
             className="hidden"
-            onChange={(e) => processFiles(e.target.files)}
+            onChange={(e) => {
+              processFiles(e.target.files)
+              e.target.value = ''   // reset so same file can be re-added
+            }}
           />
         </div>
 
         {/* Preview grid */}
         {form.fotos.length > 0 && (
           <div className="grid grid-cols-3 md:grid-cols-6 gap-2 mt-4">
-            {form.fotos.map((photo) => (
-              <div key={photo.id} className="relative group aspect-square">
-                <img
-                  src={photo.dataUrl}
-                  alt={photo.name}
-                  className="w-full h-full object-cover rounded-lg"
-                />
+            {form.fotos.map((f) => (
+              <div key={f.id} className="relative group">
+                {/* Image */}
+                {(!f.tipo || f.tipo === 'imagen') && (
+                  <div className="aspect-square">
+                    <img
+                      src={f.dataUrl}
+                      alt={f.name}
+                      className="w-full h-full object-cover rounded-lg"
+                    />
+                  </div>
+                )}
+                {/* Video */}
+                {f.tipo === 'video' && (
+                  <div className="aspect-square bg-gray-800 rounded-lg flex flex-col items-center justify-center gap-1 px-1">
+                    <FileVideo size={20} className="text-blue-400" />
+                    <p className="text-[9px] text-gray-300 text-center truncate w-full px-1">{f.name}</p>
+                    {f.size && <p className="text-[9px] text-gray-400">{formatSize(f.size)}</p>}
+                  </div>
+                )}
+                {/* PDF */}
+                {f.tipo === 'pdf' && (
+                  <div className="aspect-square bg-orange-50 border border-orange-200 rounded-lg flex flex-col items-center justify-center gap-1 px-1">
+                    <FileText size={20} className="text-orange-500" />
+                    <p className="text-[9px] text-orange-800 text-center truncate w-full px-1">{f.name}</p>
+                    {f.size && <p className="text-[9px] text-orange-400">{formatSize(f.size)}</p>}
+                  </div>
+                )}
                 <button
-                  onClick={() => removePhoto(photo.id)}
+                  onClick={() => removeFile(f.id)}
                   className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full
                              flex items-center justify-center opacity-0 group-hover:opacity-100
-                             transition-opacity"
+                             transition-opacity z-10"
                 >
                   <X size={10} />
                 </button>

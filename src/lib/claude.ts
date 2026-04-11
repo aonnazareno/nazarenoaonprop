@@ -4,6 +4,7 @@ import type {
   ComparableSupabase,
   ComparableExternal,
   ComparableManual,
+  PhotoFile,
 } from '../types'
 import { getSettings } from './storage'
 
@@ -18,53 +19,72 @@ function getCommonHeaders() {
   }
 }
 
-// ─── Vision: analyze photos ──────────────────────────────────────────────────
-export async function analyzePhotos(
-  photos: { dataUrl: string; mimeType: string }[]
-): Promise<string> {
-  if (photos.length === 0) return ''
+// ─── Vision + Documents: analyze photos and PDFs ────────────────────────────
+export async function analyzePhotos(files: PhotoFile[]): Promise<string> {
+  const images = files.filter((f) => !f.tipo || f.tipo === 'imagen').slice(0, 5)
+  const pdfs   = files.filter((f) => f.tipo === 'pdf').slice(0, 2)
+  const videos = files.filter((f) => f.tipo === 'video')
 
-  const imageContent = photos.slice(0, 6).map((p) => ({
-    type: 'image' as const,
-    source: {
-      type: 'base64' as const,
-      media_type: p.mimeType as 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif',
-      data: p.dataUrl.split(',')[1],
-    },
-  }))
+  if (images.length === 0 && pdfs.length === 0) return ''
 
-  const body = {
-    model: 'claude-sonnet-4-6',
-    max_tokens: 1024,
-    messages: [
-      {
-        role: 'user',
-        content: [
-          ...imageContent,
-          {
-            type: 'text',
-            text: `Sos un tasador inmobiliario experto de Zona Oeste GBA Argentina. Analizá estas fotos y describí:
+  // Build content blocks
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const contentBlocks: any[] = []
+
+  images.forEach((p) => {
+    contentBlocks.push({
+      type: 'image',
+      source: {
+        type: 'base64',
+        media_type: p.mimeType as 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif',
+        data: p.dataUrl.split(',')[1],
+      },
+    })
+  })
+
+  pdfs.forEach((p) => {
+    contentBlocks.push({
+      type: 'document',
+      source: {
+        type: 'base64',
+        media_type: 'application/pdf',
+        data: p.dataUrl.split(',')[1],
+      },
+    })
+  })
+
+  const videoNote = videos.length > 0
+    ? `\nNota: también se adjuntaron ${videos.length} video(s) de la propiedad (${videos.map((v) => v.name).join(', ')}) — no analizables por IA pero disponibles como referencia.`
+    : ''
+
+  contentBlocks.push({
+    type: 'text',
+    text: `Sos un tasador inmobiliario experto de Zona Oeste GBA Argentina. Analizá el material adjunto (${images.length > 0 ? images.length + ' foto(s)' : ''}${pdfs.length > 0 ? (images.length > 0 ? ' y ' : '') + pdfs.length + ' PDF(s)' : ''}) y describí:
 1. Estado visual general (excelente/muy bueno/bueno/regular/a refaccionar)
 2. Calidad constructiva aparente (estándar/buena/premium/de lujo)
-3. Terminaciones visibles: pisos, aberturas, cocina, baños, carpintería
+3. Terminaciones visibles: pisos, aberturas, cocina, baños, carpintería; y si hay planos/documentos, información relevante de superficie o distribución
 4. Puntos concretos que SUMAN valor (con estimación de impacto en %)
 5. Puntos concretos que RESTAN valor (con estimación de impacto en %)
-6. Conclusión: cómo afectan estas fotos al valor de tasación
-
+6. Conclusión: cómo afecta este material al valor de tasación
+${videoNote}
 Sé técnico y específico. Respondé en español.`,
-          },
-        ],
-      },
-    ],
-  }
+  })
+
+  // Use PDF beta header when there are PDFs
+  const headers: Record<string, string> = { ...getCommonHeaders() }
+  if (pdfs.length > 0) headers['anthropic-beta'] = 'pdfs-2024-09-25'
 
   const res = await fetch(BASE_URL, {
     method: 'POST',
-    headers: getCommonHeaders(),
-    body: JSON.stringify(body),
+    headers,
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 1500,
+      messages: [{ role: 'user', content: contentBlocks }],
+    }),
   })
 
-  if (!res.ok) throw new Error(`Error analizando fotos: ${await res.text()}`)
+  if (!res.ok) throw new Error(`Error analizando archivos: ${await res.text()}`)
   const data = await res.json()
   return data.content?.[0]?.text ?? ''
 }

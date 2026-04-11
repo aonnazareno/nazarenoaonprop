@@ -50,12 +50,14 @@ export interface ComparableManual {
   seleccionado: boolean
 }
 
-// ─── Uploaded photo ──────────────────────────────────────────────────────────
+// ─── Uploaded file (image / video / pdf) ────────────────────────────────────
 export interface PhotoFile {
   id: string
   name: string
-  dataUrl: string
+  dataUrl: string      // base64 dataURL for images/PDFs; blob URL for videos
   mimeType: string
+  tipo?: 'imagen' | 'video' | 'pdf'   // undefined = imagen (backward compat)
+  size?: number        // bytes
 }
 
 // ─── Main form state ──────────────────────────────────────────────────────────
