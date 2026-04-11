@@ -18,7 +18,7 @@ import {
 import { useState } from 'react'
 import clsx from 'clsx'
 import type { TasacionResult, TasacionForm, ComparableAnalizado, AjusteAplicado } from '../../types'
-import { generatePDFReport } from '../../lib/pdfReport'
+import { generatePDFReport, generateClientPDF } from '../../lib/pdfReport'
 
 interface Props {
   result: TasacionResult
@@ -283,19 +283,25 @@ export default function Resultados({
         <div className="flex gap-2 flex-shrink-0 flex-wrap justify-end print:hidden">
           <button
             onClick={() => setShowFichaCliente(true)}
-            className="btn-secondary flex items-center gap-2"
-            title="Versión limpia para mostrar al propietario"
+            className="btn-ghost flex items-center gap-2"
+            title="Resumen rápido para mostrar en pantalla"
           >
-            <UserCheck size={14} /> Ficha cliente
+            <UserCheck size={14} /> Vista cliente
           </button>
           <button
             onClick={handleWhatsApp}
-            className="btn-secondary flex items-center gap-2"
-            title="Compartir resumen por WhatsApp"
+            className="btn-ghost flex items-center gap-2"
           >
             <Share2 size={14} /> WhatsApp
           </button>
-          <button onClick={onNuevaTasacion} className="btn-secondary">Nueva tasación</button>
+          <button onClick={onNuevaTasacion} className="btn-ghost">Nueva tasación</button>
+          <button
+            onClick={() => generateClientPDF(result, form)}
+            className="btn-secondary flex items-center gap-2"
+            title="Informe limpio para entregar al propietario"
+          >
+            <Download size={14} /> PDF cliente
+          </button>
           <button
             onClick={() =>
               generatePDFReport(result, form, {
@@ -305,8 +311,9 @@ export default function Resultados({
               })
             }
             className="btn-primary flex items-center gap-2"
+            title="Informe interno completo con metodología y comparables"
           >
-            <Download size={14} /> Descargar PDF
+            <Download size={14} /> PDF interno
           </button>
         </div>
       </div>
