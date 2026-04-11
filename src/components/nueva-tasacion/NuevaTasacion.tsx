@@ -18,6 +18,7 @@ const INITIAL_FORM: TasacionForm = {
   precioPretendido: '',
   urgenciaVenta: 'media',
   ambientes: '0',
+  dormitorios: '0',
   banos: '0',
   cocheras: '0',
   antiguedad: '',

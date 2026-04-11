@@ -198,6 +198,7 @@ ${PHOTO_GRID_CSS}
     ${detailRow('M² cubiertos', form.m2Cubiertos ? form.m2Cubiertos + ' m²' : null)}
     ${detailRow('M² terreno / lote', form.m2Terreno ? form.m2Terreno + ' m²' : null)}
     ${detailRow('Ambientes', form.ambientes && form.ambientes !== '0' ? form.ambientes : null)}
+    ${detailRow('Dormitorios', form.dormitorios && form.dormitorios !== '0' ? form.dormitorios : null)}
     ${detailRow('Baños', form.banos)}
     ${detailRow('Cocheras', form.cocheras)}
     ${detailRow('Antigüedad', form.antiguedad ? form.antiguedad + ' años' : null)}
@@ -465,6 +466,7 @@ export function generateClientPDF(result: TasacionResult, form: TasacionForm): v
     form.m2Cubiertos ? ['Superficie cubierta', form.m2Cubiertos + ' m²'] : null,
     form.m2Terreno ? ['Terreno / lote', form.m2Terreno + ' m²'] : null,
     form.ambientes && form.ambientes !== '0' ? ['Ambientes', form.ambientes] : null,
+    form.dormitorios && form.dormitorios !== '0' ? ['Dormitorios', form.dormitorios] : null,
     form.banos ? ['Baños', form.banos] : null,
     form.cocheras ? ['Cocheras', form.cocheras] : null,
     form.antiguedad ? ['Antigüedad', form.antiguedad + ' años'] : null,

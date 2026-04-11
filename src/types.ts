@@ -73,6 +73,7 @@ export interface TasacionForm {
 
   // Step 2
   ambientes: string
+  dormitorios: string
   banos: string
   cocheras: string
   antiguedad: string

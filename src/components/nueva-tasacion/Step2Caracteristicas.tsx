@@ -129,10 +129,14 @@ export default function Step2Caracteristicas({ form, onChange }: Props) {
       {/* Ambientes / Baños / Cocheras */}
       <div className="card">
         <h3 className="font-cormorant text-lg font-semibold mb-4">Distribución</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
           <div>
             <label className="label">Ambientes</label>
             <NumberStepper value={form.ambientes} onChange={(v) => onChange({ ambientes: v })} />
+          </div>
+          <div>
+            <label className="label">Dormitorios</label>
+            <NumberStepper value={form.dormitorios} onChange={(v) => onChange({ dormitorios: v })} />
           </div>
           <div>
             <label className="label">Baños</label>

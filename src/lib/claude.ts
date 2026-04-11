@@ -306,6 +306,7 @@ PROPIEDAD A TASAR:
 - M² cubiertos: ${form.m2Cubiertos || 'No especificado'}
 - M² terreno/lote: ${form.m2Terreno || 'No especificado'}
 - Ambientes: ${form.ambientes || 'No especificado'}
+- Dormitorios: ${form.dormitorios && form.dormitorios !== '0' ? form.dormitorios : 'No especificado'}
 - Baños: ${form.banos || 'No especificado'}
 - Cocheras: ${form.cocheras || 'No especificado'}
 - Antigüedad: ${form.antiguedad ? form.antiguedad + ' años' : 'No especificada'}
