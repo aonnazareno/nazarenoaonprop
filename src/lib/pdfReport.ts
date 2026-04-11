@@ -1,4 +1,5 @@
 import type { TasacionResult, TasacionForm } from '../types'
+import logoUrl from '../assets/logo.jpg'
 
 /** Only images (uploaded as foto/imagen) — no videos, no PDFs */
 function getImages(form: TasacionForm) {
@@ -173,9 +174,12 @@ ${PHOTO_GRID_CSS}
 
 <!-- ══ HEADER ══ -->
 <div class="hdr">
-  <div class="hdr-brand">
-    <div class="company">CALDERÓN PROPIEDADES</div>
-    <div class="tagline">Matrícula N° 227 &nbsp;·&nbsp; Corredor Público Inmobiliario &nbsp;·&nbsp; Zona Oeste GBA Argentina</div>
+  <div class="hdr-brand" style="display:flex;align-items:center;gap:12px">
+    <img src="${logoUrl}" alt="Calderón Propiedades" style="height:52px;width:52px;object-fit:cover;border-radius:50%">
+    <div>
+      <div class="company">CALDERÓN PROPIEDADES</div>
+      <div class="tagline">Matrícula N° 227 &nbsp;·&nbsp; Corredor Público Inmobiliario &nbsp;·&nbsp; Zona Oeste GBA Argentina</div>
+    </div>
   </div>
   <div class="hdr-meta">
     <div class="rtitle">Informe de Tasación</div>
@@ -566,9 +570,12 @@ ${PHOTO_GRID_CSS}
 
 <!-- COVER BANNER -->
 <div class="cover-banner">
-  <div>
-    <div class="cover-company">CALDERÓN PROPIEDADES</div>
-    <div class="cover-sub">Matrícula N° 227 &nbsp;·&nbsp; Corredor Público Inmobiliario &nbsp;·&nbsp; Zona Oeste GBA Argentina</div>
+  <div style="display:flex;align-items:center;gap:16px">
+    <img src="${logoUrl}" alt="Calderón Propiedades" style="height:64px;width:64px;object-fit:cover;border-radius:50%;border:2px solid rgba(255,255,255,0.3)">
+    <div>
+      <div class="cover-company">CALDERÓN PROPIEDADES</div>
+      <div class="cover-sub">Matrícula N° 227 &nbsp;·&nbsp; Corredor Público Inmobiliario &nbsp;·&nbsp; Zona Oeste GBA Argentina</div>
+    </div>
   </div>
   <div class="cover-meta">
     <div class="doc-title">Informe de Tasación</div>
