@@ -1,5 +1,29 @@
 import type { TasacionResult, TasacionForm } from '../types'
 
+/** Only images (uploaded as foto/imagen) — no videos, no PDFs */
+function getImages(form: TasacionForm) {
+  return form.fotos.filter((f) => !f.tipo || f.tipo === 'imagen')
+}
+
+/** CSS for the photo grid (shared between both PDFs) */
+const PHOTO_GRID_CSS = `
+.foto-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}
+.foto-grid img{width:100%;height:150px;object-fit:cover;border-radius:4px;display:block;page-break-inside:avoid}
+@media print{.foto-grid img{height:130px}}`
+
+/** HTML block for the photo grid — empty string if no images */
+function buildPhotoGrid(form: TasacionForm, titleCss = 'stitle'): string {
+  const imgs = getImages(form)
+  if (imgs.length === 0) return ''
+  return `
+<div class="section">
+  <div class="${titleCss}">Fotografías de la propiedad (${imgs.length})</div>
+  <div class="foto-grid">
+    ${imgs.map((f) => `<img src="${f.dataUrl}" alt="${esc(f.name)}" loading="eager">`).join('\n    ')}
+  </div>
+</div>`
+}
+
 function esc(s: string | null | undefined): string {
   if (!s) return ''
   return String(s)
@@ -122,6 +146,9 @@ tr:last-child td{border-bottom:none}
 
 /* ── Preformatted ── */
 .pre{font-family:'Courier New',monospace;font-size:8.8pt;background:#f8f8f8;border:1px solid #e0e0e0;border-radius:4px;padding:10px 12px;white-space:pre-wrap;line-height:1.55;overflow-wrap:break-word}
+
+/* ── Photo grid ── */
+${PHOTO_GRID_CSS}
 
 /* ── Narrative text ── */
 .narr{line-height:1.7;color:#1a1a1a;text-align:justify}
@@ -378,6 +405,9 @@ ${result.observaciones_internas ? `
   <div class="int-box narr">${nl(result.observaciones_internas)}</div>
 </div>` : ''}
 
+<!-- ══ ANEXO FOTOGRÁFICO ══ -->
+${buildPhotoGrid(form)}
+
 <!-- ══ DISCLAIMER ══ -->
 <div class="disclaimer">
   <p><strong>CALDERÓN PROPIEDADES</strong> &nbsp;·&nbsp; Matrícula N° 227 &nbsp;·&nbsp; Corredor Público Inmobiliario &nbsp;·&nbsp; Zona Oeste GBA Argentina</p>
@@ -514,6 +544,9 @@ body{font-family:'Helvetica Neue',Arial,sans-serif;font-size:10.5pt;color:#1a1a1
 .sig-block{text-align:center;min-width:200px}
 .sig-line{border-top:1.5px solid #1a1a1a;padding-top:6px;font-size:9pt;color:#333}
 
+/* ── Photo grid ── */
+${PHOTO_GRID_CSS}
+
 /* ── Footer / disclaimer ── */
 .disclaimer{border-top:1.5px solid #e5e7eb;padding:12px 48px;margin-top:0;font-size:7.5pt;color:#888;text-align:center;line-height:1.6}
 
@@ -638,6 +671,9 @@ body{font-family:'Helvetica Neue',Arial,sans-serif;font-size:10.5pt;color:#1a1a1
     Este informe fue elaborado mediante el <strong>método comparativo de mercado</strong>: se analizaron propiedades similares en la misma zona, se calculó el valor por m² de cada comparable, se aplicaron ajustes por estado, calidad, antigüedad y características específicas, y se determinó un rango de valor para la propiedad.
     ${result.confianza_nota ? `<br><br><em>${esc(result.confianza_nota)}</em>` : ''}
   </div>
+
+  <!-- FOTOGRAFÍAS -->
+  ${buildPhotoGrid(form, 'sh')}
 
   <!-- SIGNATURE -->
   <div class="signature">
